@@ -10,6 +10,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 from pydantic import TypeAdapter
 
+from adloom.adapters.base import PublishNotSent
 from adloom.config import AdLoomError
 from adloom.jobs import file_hash
 from adloom.schemas import BBox, FrameRate, Segment, TrackResult
@@ -91,6 +92,6 @@ class MockMarketing:
             raise AdLoomError("E_INPUT_INVALID", "publish", "Advertising resources must be paused")
         if self.fail_on == len(self.requests)+1:
             self.fail_on = None
-            raise AdLoomError("E_PUBLISH_PARTIAL", "publish", "Injected pre-request failure", True)
+            raise PublishNotSent("E_PUBLISH_PARTIAL", "publish", "Injected pre-request failure", True)
         self.requests.append({"resource": resource, "payload": payload, "key": operation_key})
         return "fixture-" + hashlib.sha256(operation_key.encode()).hexdigest()[:24]

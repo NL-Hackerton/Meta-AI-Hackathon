@@ -18,7 +18,7 @@ T00~T09는 mock만으로 끝나며 킥오프(10/26) 전에 돌릴 수 있는 범
 | T05 | DONE | 어댑터 Protocol 5개 + Mock 5종 + 팩토리 | T01 | `adapters/base.py`, `adapters/mock_*.py` | AC-21 | 10/25 | 10/27 Protocol 5개·digest fixture·합성 추적·PNG·전사 fixture·PAUSED publisher를 구현했다. make check 147개와 샘플 이해/300프레임 추적/PNG smoke 통과. unknown fixture와 live 요청은 명시 거부한다. |
 | T06 | DONE | 스테이지: 입력·이해·추적·보강 | T02, T03, T04, T05 | `stages/` | AC-01, 02, 03, 04, 08, 10 | 10/25 | 10/27 정규화·음성 설명 전사·1회 schema repair·정책 재검사·추적/중앙 대체·Image 실패 대체를 구현했다. make check 151개와 실제 입력→보강 파일 처리 smoke 통과. live 모델 품질은 미검증이다. |
 | T07 | DONE | `render.py` + 조립 스테이지: ffmpeg 렌더, 훅·자막·엔드카드 오버레이, 폰트 | T03 | `render.py`, `stages/assemble.py` | AC-11, 12, 13, 14 | 10/25 | 10/27 5080 서버에서 6종 렌더·H.264/yuv420p/AAC·길이·반복 frame hash·훅 제거를 검증했다. make check 154개 통과. 시간축/자막 매핑·폰트/소스 hash·허용 소스 검증 포함. 결정론은 동일 build 범위다. |
-| T08 | TODO | Marketing Mock과 게시 스테이지, 멱등성 | T02, T05 | `stages/publish.py` | AC-15, 16, 17 | 10/25 | |
+| T08 | DONE | Marketing Mock과 게시 스테이지, 멱등성 | T02, T05 | `stages/publish.py` | AC-15, 16, 17 | 10/25 | 10/27 승인 digest·실제 파일 hash·최종 정책 재검사·operation journal·부분 재개를 구현했다. make check 159개, 실제 저장 smoke에서 9요청·광고2개·중복0 확인. PAUSED는 campaign/adset/ad에 강제하며 결과 불명은 재전송하지 않는다. |
 | T09 | TODO | `cli.py`와 파이프라인 오케스트레이터, mock E2E | T06, T07, T08 | `cli.py`, `pipeline.py` | AC-20 | 10/25 | |
 | T10 | TODO | Live Spark 어댑터 (**H2**) | T09 | `adapters/spark.py` | live 테스트, AC-03·04를 Live 응답 fixture로 재검증 | 10/27 | |
 | T11 | TODO | Live SAM 어댑터, 마스크 → 박스 변환 (**H2**) | T09 | `adapters/sam.py` | live 테스트, AC-06 재검증 | 10/28 | |

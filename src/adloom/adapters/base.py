@@ -6,6 +6,10 @@ from adloom.config import AdLoomError, Settings, load_config
 from adloom.schemas import Segment, TrackResult
 
 
+class PublishNotSent(AdLoomError):
+    """The adapter guarantees no remote side effect occurred."""
+
+
 class UnderstandingAdapter(Protocol):
     def understand(
         self, video: Path, note_text: str, language: str, feedback: str | None = None

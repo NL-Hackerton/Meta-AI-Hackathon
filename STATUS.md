@@ -24,3 +24,4 @@
 2026-10-27 · T05 · DONE(AC-21 팩토리) · 어댑터 Protocol 5개와 mock 5종·팩토리를 구현했다. make check 147개 및 샘플 이해/추적/PNG smoke 통과. 모델 결과는 digest fixture로만 읽고 실제 추론·전사·광고로 표시하지 않는다.
 2026-10-27 · T06 · DONE(AC-01·02·03·04·08·10) · 입력 정규화·설명 전사·schema repair·정책·추적·보강을 구현했다. make check 151개 및 10초 샘플의 훅3개·coverage0.92·크롭3종·엔드카드3종·무자막 smoke 통과. Image 실패 시 실제 대표 프레임과 단색 카드로 대체하는 테스트를 포함했다.
 2026-10-27 · T07 · DONE(AC-11·12·13·14) · 5080 서버의 격리 환경에 의존성과 공식 FFmpeg 다운로드 페이지가 연결한 BtbN 9.0 build를 설치하고 archive SHA-256을 GitHub asset digest와 대조했다. 단일 CPU thread로 6종 영상을 두 번 렌더해 frame hash 일치·8초·3종 해상도·H.264/yuv420p/AAC를 확인했다. make check 154개 통과, 2초 훅·4초 제거·7초 엔드카드 프레임 확인. 다른 GPU 작업은 변경하지 않았다.
+2026-10-27 · T08 · DONE(AC-15·16·17) · 승인 파일/내용/자산 검증, PAUSED 광고 계층, CONFIRMED ID 재사용, UNKNOWN 재전송 차단을 구현했다. make check 159개 및 승인→3번째 요청 실패→재개 smoke에서 요청9개·광고2개·중복0 확인. 업로드/creative에는 지원하지 않는 status를 추가하지 않으며 실제 광고는 생성하지 않았다.
