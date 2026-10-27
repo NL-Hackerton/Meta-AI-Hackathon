@@ -14,7 +14,7 @@ T00~T09는 mock만으로 끝나며 킥오프(10/26) 전에 돌릴 수 있는 범
 | T01 | DONE | `schemas.py`, `config.py`: 모델·상수, LIVE 게이트, Contributor ID 거부 | T00 | `schemas.py`, `config.py` | AC-01(스키마), AC-18, AC-21 | 10/24 | 10/27 기존 스키마를 재사용하고 설정·Standard 제한·명시 live 요청 거부를 구현했다. 실패 테스트 후 make check 55개 및 설정 로드 smoke 통과. H2/H3 승인 전 live는 E_API_AUTH로 종료하며 mock으로 전환하지 않는다. |
 | T02 | DONE | `jobs.py`: Job 저장, 상태 머신 전이 규칙(§3), `job.json` 원자적 쓰기 | T01 | `jobs.py` | §3 전이 테스트 | 10/24 | 10/27 immutable snapshot·atomic head·digest·stale commit 거부·실행 lock·실패 재개를 구현했다. 전체 전이표 81조합 포함 make check 138개 및 실제 저장/실패/재개 smoke 통과. |
 | T03 | DONE | `crop.py` 순수 함수와 박스 보간 | T01 | `crop.py` | AC-06, 07, 09 | 10/24 | 10/27 보간·고정 비율·6% 여백·평활·24px 이동 상한·중앙 대체를 구현했다. 불가능한 포함은 clipped/safe-area 표시로 남긴다. make check 143개 및 all-null 300프레임 smoke 통과. |
-| T04 | TODO | `policy.py` 규칙 기반 점검과 순화 (규칙 표는 `policy_rules.yaml`) | T01 | `policy.py`, `policy_rules.yaml` | AC-05 | 10/25 | |
+| T04 | DONE | `policy.py` 규칙 기반 점검과 순화 (규칙 표는 `policy_rules.yaml`) | T01 | `policy.py`, `policy_rules.yaml` | AC-05 | 10/25 | 10/27 보장·의학적 단정 문구 탐지와 순화 제안을 구현했다. make check 144개와 100% 보장→순화본 재검사 smoke 통과. Meta 정책 승인이나 사실 검증을 보장하지 않는다. |
 | T05 | TODO | 어댑터 Protocol 5개 + Mock 5종 + 팩토리 | T01 | `adapters/base.py`, `adapters/mock_*.py` | AC-21 | 10/25 | |
 | T06 | TODO | 스테이지: 입력·이해·추적·보강 | T02, T03, T04, T05 | `stages/` | AC-01, 02, 03, 04, 08, 10 | 10/25 | |
 | T07 | TODO | `render.py` + 조립 스테이지: ffmpeg 렌더, 훅·자막·엔드카드 오버레이, 폰트 | T03 | `render.py`, `stages/assemble.py` | AC-11, 12, 13, 14 | 10/25 | |

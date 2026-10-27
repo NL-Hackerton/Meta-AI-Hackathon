@@ -1,0 +1,4 @@
+[
+  {"id": "absolute_guarantee", "pattern": "100\\s*%\\s*보장|무조건\\s*보장", "replacement": "서비스 내용을 확인하세요"},
+  {"id": "medical_guarantee", "pattern": "완치|부작용\\s*없음", "replacement": "상세 정보를 확인하세요"}
+]
