@@ -19,3 +19,4 @@
 2026-10-27 · T00 · DONE(AC-19) · 사용자 기획 반영·코드 수정 지시로 부분 진행 태스크를 재개했다. 합성 생성기 실패 테스트→구현→make check 53개 통과 및 data/sample.mp4의 H.264·1920×1080·300프레임·10초를 확인했다. 기존 스키마를 재사용하고 원본 SPEC는 보존한다. 사람 게이트·live 실행 제한은 유지한다.
 2026-10-27 · T01 · DONE(AC-01 스키마·18·21 설정 경계) · 실패 테스트 후 config·Standard 모델 제한·live 차단을 구현했다. make check 55개와 설정 로드 smoke 통과. 실제 어댑터 팩토리 경계는 T05에서 검증하며 H2/H3는 유지한다.
 2026-10-27 · T02 · DONE(상태 전이표) · 새 테스트 실패 후 atomic snapshot/head·digest·stale commit·실행 lock·실패 재개를 구현했다. make check 138개 및 실제 저장→FAILED→CREATED 재개 smoke 통과. 승인·게시 내용 검증은 T08에서 연결한다.
+2026-10-27 · T03 · DONE(AC-06·07·09) · 누락 박스 보간·경계/이동 상한·feasible 여백·품질 표시 구현 후 make check 143개 통과. all-null 300프레임의 중앙 대체 smoke 확인. SAFE_TOP/BOTTOM은 잠정값이며 모든 피사체 포함을 보장하지 않는다.
