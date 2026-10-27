@@ -12,7 +12,7 @@ T00~T09는 mock만으로 끝나며 킥오프(10/26) 전에 돌릴 수 있는 범
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | T00 | DONE | 스캐폴드: pyproject, Makefile(`make check`), ruff·mypy·pytest 설정, `AGENTS.md`, ffmpeg로 1920×1080 10초 합성 샘플 영상(움직이는 도형) 생성 스크립트 | 없음 | `pyproject.toml`, `Makefile`, `tests/fixtures/make_sample.sh` | AC-19 스캔 테스트 골격 | 10/24 | 10/27 사용자 구현 재개 지시로 진행했다. 실패 테스트 확인 후 합성 생성기를 구현했으며 make check 53개 통과, 실제 샘플 H.264·1920×1080·300프레임·10초를 확인했다. 비밀 패턴 스캔 통과. |
 | T01 | DONE | `schemas.py`, `config.py`: 모델·상수, LIVE 게이트, Contributor ID 거부 | T00 | `schemas.py`, `config.py` | AC-01(스키마), AC-18, AC-21 | 10/24 | 10/27 기존 스키마를 재사용하고 설정·Standard 제한·명시 live 요청 거부를 구현했다. 실패 테스트 후 make check 55개 및 설정 로드 smoke 통과. H2/H3 승인 전 live는 E_API_AUTH로 종료하며 mock으로 전환하지 않는다. |
-| T02 | TODO | `jobs.py`: Job 저장, 상태 머신 전이 규칙(§3), `job.json` 원자적 쓰기 | T01 | `jobs.py` | §3 전이 테스트 | 10/24 | |
+| T02 | DONE | `jobs.py`: Job 저장, 상태 머신 전이 규칙(§3), `job.json` 원자적 쓰기 | T01 | `jobs.py` | §3 전이 테스트 | 10/24 | 10/27 immutable snapshot·atomic head·digest·stale commit 거부·실행 lock·실패 재개를 구현했다. 전체 전이표 81조합 포함 make check 138개 및 실제 저장/실패/재개 smoke 통과. |
 | T03 | TODO | `crop.py` 순수 함수와 박스 보간 | T01 | `crop.py` | AC-06, 07, 09 | 10/24 | |
 | T04 | TODO | `policy.py` 규칙 기반 점검과 순화 (규칙 표는 `policy_rules.yaml`) | T01 | `policy.py`, `policy_rules.yaml` | AC-05 | 10/25 | |
 | T05 | TODO | 어댑터 Protocol 5개 + Mock 5종 + 팩토리 | T01 | `adapters/base.py`, `adapters/mock_*.py` | AC-21 | 10/25 | |
