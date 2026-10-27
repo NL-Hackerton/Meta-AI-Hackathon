@@ -13,6 +13,7 @@ def text_image(text: str, size: tuple[int, int], *, bottom: bool = False) -> Ima
     image = Image.new("RGBA", size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
     font = ImageFont.truetype(str(FONT_PATH), 58)
+    font.set_variation_by_axes([600])
     width, height = size
     lines: list[str] = []
     line = ""
@@ -71,7 +72,8 @@ def enrich(
         thumbnail = directory / f"thumbnail-{suffix}.png"
         background.save(thumbnail)
         card = Image.new("RGBA", size, (18, 60, 51, 255)) if fallback else background.convert("RGBA")
-        card.alpha_composite(text_image(understanding.cta, size))
+        cta_text = {"LEARN_MORE": "자세히 보기"}.get(understanding.cta, understanding.cta)
+        card.alpha_composite(text_image(cta_text, size))
         endcard = directory / f"endcard-{suffix}.png"
         card.convert("RGB").save(endcard)
         thumbnails.append(AspectImage(aspect=aspect, path=thumbnail.relative_to(job_dir).as_posix(), sha256=file_hash(thumbnail), origin_mode="fixture"))
