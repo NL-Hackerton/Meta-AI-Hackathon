@@ -10,7 +10,7 @@ T00~T09는 mock만으로 끝나며 킥오프(10/26) 전에 돌릴 수 있는 범
 
 | ID | 상태 | 내용 | 선행 | 파일 | 담당 AC | 목표일 | 메모 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| T00 | IN_PROGRESS | 스캐폴드: pyproject, Makefile(`make check`), ruff·mypy·pytest 설정, `AGENTS.md`, ffmpeg로 1920×1080 10초 합성 샘플 영상(움직이는 도형) 생성 스크립트 | 없음 | `pyproject.toml`, `Makefile`, `tests/fixtures/make_sample.sh` | AC-19 스캔 테스트 골격 | 10/24 | 스키마 요청의 검증 prerequisite로 패키징·개발 도구·Makefile 구현. 합성 생성기·전체 비밀 스캔은 미구현. 10/27 재개 점검: TODO 전용 선택 규칙에는 IN_PROGRESS 재개 경로가 없어 이번 루프를 중단했다(SC-017). |
+| T00 | DONE | 스캐폴드: pyproject, Makefile(`make check`), ruff·mypy·pytest 설정, `AGENTS.md`, ffmpeg로 1920×1080 10초 합성 샘플 영상(움직이는 도형) 생성 스크립트 | 없음 | `pyproject.toml`, `Makefile`, `tests/fixtures/make_sample.sh` | AC-19 스캔 테스트 골격 | 10/24 | 10/27 사용자 구현 재개 지시로 진행했다. 실패 테스트 확인 후 합성 생성기를 구현했으며 make check 53개 통과, 실제 샘플 H.264·1920×1080·300프레임·10초를 확인했다. 비밀 패턴 스캔 통과. |
 | T01 | IN_PROGRESS | `schemas.py`, `config.py`: 모델·상수, LIVE 게이트, Contributor ID 거부 | T00 | `schemas.py`, `config.py` | AC-01(스키마), AC-18, AC-21 | 10/24 | 사용자 지시로 schemas 범위 선행: 모델44개·회귀51개·make check 및 JSON/ASGI smoke 통과. config/env/LIVE gate 미구현으로 전체 T01·AC18/21 완료 아님. 10/27: T00 미완료 및 기존 스키마와 원본 계약 차이의 후속 적용 결정이 필요하다(SC-015·017). |
 | T02 | TODO | `jobs.py`: Job 저장, 상태 머신 전이 규칙(§3), `job.json` 원자적 쓰기 | T01 | `jobs.py` | §3 전이 테스트 | 10/24 | |
 | T03 | TODO | `crop.py` 순수 함수와 박스 보간 | T01 | `crop.py` | AC-06, 07, 09 | 10/24 | |
