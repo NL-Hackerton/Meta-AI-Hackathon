@@ -17,13 +17,13 @@ BBOX_MARGIN = 0.06
 SAFE_TOP = 0.14
 SAFE_BOTTOM = 0.22
 ALLOWED_CTAS = ("LEARN_MORE",)
-FONT_PATH = Path(__file__).resolve().parents[2] / "third_party/fonts/noto-sans-kr/NotoSansKR[wght].ttf"
+FONT_PATH = (
+    Path(__file__).resolve().parents[2] / "third_party/fonts/noto-sans-kr/NotoSansKR[wght].ttf"
+)
 
 
 class AdLoomError(Exception):
-    def __init__(
-        self, code: ErrorCode, stage: Stage, detail: str, retryable: bool = False
-    ) -> None:
+    def __init__(self, code: ErrorCode, stage: Stage, detail: str, retryable: bool = False) -> None:
         self.error = ErrorDetail(code=code, stage=stage, retryable=retryable, detail=detail)
         super().__init__(f"{code}: {detail}")
 

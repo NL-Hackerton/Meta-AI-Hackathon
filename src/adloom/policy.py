@@ -27,13 +27,21 @@ def check(fields: Mapping[str, str]) -> tuple[Flag, ...]:
     for field, text in fields.items():
         for rule in RULES:
             if re.search(rule.pattern, text, flags=re.IGNORECASE):
-                flags.append(Flag(
-                    field=field, original=text, rule_id=rule.id, severity="block",
-                    rewrite=re.sub(rule.pattern, rule.replacement, text, flags=re.IGNORECASE),
-                ))
+                flags.append(
+                    Flag(
+                        field=field,
+                        original=text,
+                        rule_id=rule.id,
+                        severity="block",
+                        rewrite=re.sub(rule.pattern, rule.replacement, text, flags=re.IGNORECASE),
+                    )
+                )
     return tuple(flags)
 
 
 def understanding_fields(value: Understanding) -> dict[str, str]:
-    return {"primary_text": value.primary_text, "headline": value.headline,
-            **{f"hook:{hook.id}": hook.text for hook in value.hook_candidates}}
+    return {
+        "primary_text": value.primary_text,
+        "headline": value.headline,
+        **{f"hook:{hook.id}": hook.text for hook in value.hook_candidates},
+    }

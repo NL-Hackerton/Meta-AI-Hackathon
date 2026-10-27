@@ -1,10 +1,10 @@
-# AdLoom의 도메인 스키마 패키지다. 애플리케이션 서비스는 아직 구현되지 않았다.
+# AdLoom의 스키마·로컬 파이프라인·CLI 패키지다. live 실행은 사람 게이트로 차단한다.
 # 0.0.0은 정식 배포 전 개발 버전이다.
 # 핀 근거·출처·라이선스: docs/architecture/dependencies.md
 [project]
 name = "adloom"
 version = "0.0.0"
-description = "AdLoom domain schemas and validation contracts"
+description = "AdLoom offline video assembly and approval-bound publishing workflow"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [

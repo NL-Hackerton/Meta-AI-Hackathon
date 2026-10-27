@@ -33,8 +33,14 @@ from adloom.schemas import (
 )
 
 STATES: tuple[JobState, ...] = (
-    "CREATED", "UNDERSTOOD", "TRACKED", "ENRICHED", "RENDERED",
-    "AWAITING_APPROVAL", "APPROVED", "PUBLISHED_PAUSED",
+    "CREATED",
+    "UNDERSTOOD",
+    "TRACKED",
+    "ENRICHED",
+    "RENDERED",
+    "AWAITING_APPROVAL",
+    "APPROVED",
+    "PUBLISHED_PAUSED",
 )
 
 
@@ -124,10 +130,17 @@ class JobStore:
         snapshot = Snapshot(brief=brief, media=media)
         ref = self._snapshot_ref(identifier, 1, 1, snapshot)
         head = JobManifest(
-            job_id=identifier, revision=1, manifest_seq=1, execution_mode="fixture",
-            state="CREATED", last_success_state="CREATED", run_state="IDLE",
+            job_id=identifier,
+            revision=1,
+            manifest_seq=1,
+            execution_mode="fixture",
+            state="CREATED",
+            last_success_state="CREATED",
+            run_state="IDLE",
             note_status="CONFIRMED" if brief.note_text else "AUDIO_PENDING",
-            manifest_ref=ref, created_at=now, updated_at=now,
+            manifest_ref=ref,
+            created_at=now,
+            updated_at=now,
         )
         atomic_write(self.path(identifier, "brief.json"), brief.model_dump_json().encode())
         atomic_write(self.path(identifier, "job.json"), head.model_dump_json().encode())
@@ -142,23 +155,26 @@ class JobStore:
     def commit(self, head: JobManifest, snapshot: Snapshot, **changes: object) -> JobManifest:
         current = self.load(head.job_id)
         if (current.revision, current.manifest_seq) != (head.revision, head.manifest_seq):
-            raise AdLoomError("E_REVISION_CONFLICT", "input", "Job changed; reload before continuing")
+            raise AdLoomError(
+                "E_REVISION_CONFLICT", "input", "Job changed; reload before continuing"
+            )
         values = head.model_dump()
         values.update(changes)
         values["manifest_seq"] = head.manifest_seq + 1
         values["updated_at"] = datetime.now(UTC)
         # Validate state before creating the immutable snapshot.
         candidate = JobManifest.model_validate(values)
-        ref = self._snapshot_ref(
-            head.job_id, candidate.revision, candidate.manifest_seq, snapshot
-        )
+        ref = self._snapshot_ref(head.job_id, candidate.revision, candidate.manifest_seq, snapshot)
         values["manifest_ref"] = ref
         result = JobManifest.model_validate(values)
         atomic_write(self.path(head.job_id, "job.json"), result.model_dump_json().encode())
         return result
 
     def transition(
-        self, head: JobManifest, target: JobState, snapshot: Snapshot,
+        self,
+        head: JobManifest,
+        target: JobState,
+        snapshot: Snapshot,
         approval_ref: ArtifactRef | None = None,
     ) -> JobManifest:
         if not allowed_transition(head.state, target) or target == "FAILED":
@@ -178,20 +194,37 @@ class JobStore:
         if target == "RENDERED":
             reference = None
         return self.commit(
-            head, snapshot, state=target, last_success_state=target, approval_ref=reference,
-            failed_stage=None, error=None, pending_stage=None, note_status="CONFIRMED",
+            head,
+            snapshot,
+            state=target,
+            last_success_state=target,
+            approval_ref=reference,
+            failed_stage=None,
+            error=None,
+            pending_stage=None,
+            note_status="CONFIRMED",
         )
 
     def fail(self, head: JobManifest, stage: Stage, error: ErrorDetail) -> JobManifest:
         return self.commit(
-            head, self.snapshot(head), state="FAILED", failed_stage=stage,
-            pending_stage=stage, error=error, run_state="IDLE", active_run_id=None,
+            head,
+            self.snapshot(head),
+            state="FAILED",
+            failed_stage=stage,
+            pending_stage=stage,
+            error=error,
+            run_state="IDLE",
+            active_run_id=None,
         )
 
     def resume(self, head: JobManifest) -> JobManifest:
         if head.state != "FAILED":
             raise AdLoomError("E_STATE_CONFLICT", "input", "Only failed jobs can resume")
         return self.commit(
-            head, self.snapshot(head), state=head.last_success_state,
-            failed_stage=None, error=None, pending_stage=None,
+            head,
+            self.snapshot(head),
+            state=head.last_success_state,
+            failed_stage=None,
+            error=None,
+            pending_stage=None,
         )

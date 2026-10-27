@@ -54,5 +54,10 @@ def get_adapters(settings: Settings | None = None, job_dir: Path | None = None) 
     if config.mode != "fixture":
         raise AdLoomError("E_API_AUTH", "input", "Live adapters require human approval")
     fixtures = Path(__file__).resolve().parents[3] / "tests/fixtures"
-    return Adapters(MockSpark(fixtures), MockTracking(), MockImage(job_dir or config.data_dir),
-                    MockVoice(fixtures), MockMarketing())
+    return Adapters(
+        MockSpark(fixtures),
+        MockTracking(),
+        MockImage(job_dir or config.data_dir),
+        MockVoice(fixtures),
+        MockMarketing(),
+    )

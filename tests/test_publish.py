@@ -11,10 +11,21 @@ from adloom.schemas import Brief, FrameRate, MediaInfo
 def test_publish_without_approval_never_calls_adapter(tmp_path):
     module = importlib.import_module("adloom.stages.publish")
     store = JobStore(tmp_path)
-    head = store.create(Brief(video_path="input/source.mp4", note_text="샘플", region="서울", daily_budget_krw=10000),
-                        MediaInfo(source_sha256="a"*64, normalized_sha256="a"*64, source_width=1920,
-                                  source_height=1080, duration_us=10000000, fps=FrameRate(numerator=30, denominator=1),
-                                  frame_count=300, has_audio=False))
+    head = store.create(
+        Brief(
+            video_path="input/source.mp4", note_text="샘플", region="서울", daily_budget_krw=10000
+        ),
+        MediaInfo(
+            source_sha256="a" * 64,
+            normalized_sha256="a" * 64,
+            source_width=1920,
+            source_height=1080,
+            duration_us=10000000,
+            fps=FrameRate(numerator=30, denominator=1),
+            frame_count=300,
+            has_audio=False,
+        ),
+    )
     adapter = MockMarketing()
     with pytest.raises(AdLoomError, match="E_APPROVAL_REQUIRED"):
         module.publish(store, head, adapter)
@@ -45,7 +56,14 @@ def test_partial_publish_reuses_confirmed_ids(tmp_path, rendered_case):
     completed = module.publish(store, failed, adapter)
     assert completed.state == "PUBLISHED_PAUSED"
     assert len({r["key"] for r in adapter.requests}) == len(adapter.requests)
-    assert {r["resource"] for r in adapter.requests} == {"campaign", "adset", "image", "video", "creative", "ad"}
+    assert {r["resource"] for r in adapter.requests} == {
+        "campaign",
+        "adset",
+        "image",
+        "video",
+        "creative",
+        "ad",
+    }
     for request in adapter.requests:
         if request["resource"] in {"campaign", "adset", "ad"}:
             assert request["payload"]["status"] == "PAUSED"

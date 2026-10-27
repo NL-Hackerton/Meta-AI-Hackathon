@@ -2,10 +2,10 @@
 
 이 문서는 AdLoom의 Python 런타임 의존성 고정 내용과 근거를 기록한다. 2026-10-25 기준 PyPI JSON metadata(`https://pypi.org/pypi/<이름>/json`)에서 최신 버전, 비철회(non-yanked) 여부, `requires_python`, 라이선스를 확인하였다.
 
-- **현재 상태:** `src/adloom/schemas.py`와 도메인 테스트·Makefile이 구현됐다. config·서버·CLI·worker·pipeline은 아직 없으며 제품 실행 명령도 없다.
+- **현재 상태:** 스키마·설정·파일 저장·mock pipeline·렌더·승인/게시·CLI를 구현했다. 실행 명령은 루트 README에 있다. 별도 worker·웹 서버·live 어댑터는 아직 없다.
 - `version = "0.0.0"`은 정식 배포 전 개발 버전이다. Hatchling1.27.0 build backend로 `src/adloom`을 editable 설치한다. 이전 dependency-only `package=false` 설정은 제거했다.
 - 외부 코드 확보와 스키마 구현은 대회 규정(H1) 허용 판정이나 제품 전체 완료를 뜻하지 않는다.
-- root SPEC는 보존한다. T00은 샘플 생성기·전체 비밀 스캔이, T01은 config/LIVE gate가 남아 있다. 상태·메모는 TASKS에 기록한다.
+- root SPEC는 보존한다. T00~T09의 mock 경로를 완료했으며 H2/H3와 웹 설계·검수 선행 조건은 유지한다. 태스크 상태와 실행 증거는 TASKS·STATUS에 기록한다.
 
 ## 1. 확인한 환경
 

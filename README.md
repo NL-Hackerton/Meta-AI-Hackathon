@@ -5,9 +5,9 @@
 ## 현재 상태
 
 - 고객 검증 불가 조건에 맞춰 제품 완성도 중심으로 BMAD 기획을 보완했다. 고객 인터뷰·실고객 확보·매출/CTR 개선은 gate가 아니다.
-- `src/adloom/schemas.py`의 공유 모델44개와 순수 검증, 회귀 테스트51개를 구현했다. `make check`가 ruff·mypy strict·pytest를 실행한다. config·저장·worker·제품 서버/CLI·provider 호출·광고 생성은 아직 없다.
-- 루트 [SPEC.md](SPEC.md)는 원본 구현 명세다. **BMAD 초안은 이를 대체하지 않는다.**
-- [변경 기록](SPEC_CHANGES.md)의 SC-001~SC-015는 루트 명세에 미반영이다. 사용자 요청으로 스키마 범위를 구현했으며, 제품 전체·대회 규정·live 실행 승인을 뜻하지 않는다.
+- T00~T09의 mock 경로를 구현했다. CLI에서 입력 정규화→fixture 이해→합성 추적→보강→6종 영상 렌더→사람 승인→PAUSED mock 게시까지 실행할 수 있다. `make check`는 ruff·mypy strict·pytest를 실행한다.
+- 루트 [SPEC.md](SPEC.md)는 보존했다. 팀원 [기획안](https://github.com/NL-Hackerton/Meta-AI-Hackathon/blob/bf82ac60e31a740f7b2bce9dd21796c17229672d/docs/plan/기획안-SMB-광고영상-자동화-초안.md) 반영 요청에 따라 기존 스키마를 재사용해 구현했다.
+- 웹 화면·웹 서버·별도 worker·live 어댑터는 아직 없다. T10~T13은 H2/H3, T14는 선행 Figma 설계·검수 연동 부재로 BLOCKED다. `ADLOOM_LIVE=1`은 `E_API_AUTH`로 거부하며 조용히 mock으로 전환하지 않는다. 실제 모델 추론이나 광고 생성 완료를 뜻하지 않는다.
 
 ## 코드베이스 아키텍처와 확보한 코드
 
@@ -23,7 +23,31 @@ uv sync --locked
 make check
 ```
 
-`uv sync --locked`는 의존성과 AdLoom 스키마 패키지를 설치한다. 현재 제품 CLI·웹 실행 명령은 없다. ffmpeg/ffprobe9.0.2는 별도 시스템 의존성이다. 전체 FastAPI 템플릿이나 Hello World 생성기는 가져오지 않았다.
+`uv sync --locked`는 의존성과 저장소의 AdLoom 패키지를 editable 설치한다. Python 3.12와 시스템 ffmpeg/ffprobe 9 계열이 필요하다. 렌더 통합 검사를 포함한 전체 검사와 반복 렌더는 5080 서버에서 실행했다. 동일 입력의 frame hash 일치는 같은 ffmpeg·폰트·renderer build 범위에서만 검증한다.
+
+## mock 실행
+
+`tests/fixtures/sample.mp4`는 생성기로 만든 10초 합성 영상이며 저장된 SHA-256 fixture와 짝을 이룬다. 임의 영상은 해당 digest의 이해 fixture가 없으면 실패한다. mock 추적·이미지·전사는 실제 모델 결과가 아니다. `make_sample.sh`로 다른 ffmpeg build에서 다시 만든 파일은 digest가 달라질 수 있으므로 처음에는 포함된 샘플을 사용한다.
+
+```sh
+uv run --locked python -m adloom run \
+  --video tests/fixtures/sample.mp4 --note "합성 샘플" --region "서울" --budget 10000
+uv run --locked python -m adloom list
+uv run --locked python -m adloom inspect JOB_ID
+uv run --locked python -m adloom approve JOB_ID --actor local-reviewer --digest CONTENT_DIGEST
+uv run --locked python -m adloom publish JOB_ID
+```
+
+`JOB_ID`는 `run` 출력의 `job_id`, `CONTENT_DIGEST`는 `inspect` 출력의 `content_digest`로 바꾼다. 영상은 `data/jobs/JOB_ID/renders/r000001/`에 저장된다. 먼저 mp4 6개와 `inspect`의 문구·정책 플래그·품질 경고를 확인한 뒤 승인한다. `publish` 결과의 `fixture-` ID는 실제 Meta 광고 ID가 아니다.
+
+```sh
+uv run --locked python -m adloom edit JOB_ID --hook-a "수정한 문구"
+uv run --locked python -m adloom resume JOB_ID
+```
+
+`edit`는 게시 전 작업의 훅 A/B·본문·제목만 수정한다. 실제 변경이 있으면 revision을 올리고 승인을 무효화한 뒤 다시 렌더한다. `resume`은 저장된 실패 단계부터 재개한다. 게시 요청의 결과가 불명이면 자동 재전송하지 않는다. `ADLOOM_DATA_DIR`로 작업 저장 위치를 지정할 수 있다. 이미지 실패는 원본 대표 프레임·단색 카드와 경고로 남기고, 낮은 추적 coverage는 중앙 크롭과 degraded 표시로 남긴다.
+
+안전 영역(위 14%·아래 22%), 문구 한도, 30초 영상 상한은 제품 잠정값이다. 정책 점검은 현재 규칙표의 표현만 탐지하며, 사실성이나 Meta 심사 통과를 보장하지 않는다. 예산·목표·CTA의 fixture 설정을 실제 계정 설정으로 사용하지 않는다.
 
 ## 읽는 순서
 
@@ -46,11 +70,11 @@ Python 3.11+와 `uv`가 있는 환경에서 프로젝트 설정을 확인한다.
 uv run _bmad/scripts/resolve_config.py --project-root .
 ```
 
-명세 갱신은 memlog와 근거를 통해 기록하고 루트 SPEC 변경은 별도 승인 절차를 유지한다. 현재 `make check`는 스키마 구현 범위를 검사하며 미구현 pipeline·전체 INV·live 검증 완료를 뜻하지 않는다.
+명세 갱신은 memlog와 근거를 통해 기록하고 루트 SPEC 변경은 별도 승인 절차를 유지한다. 현재 검증은 스키마와 mock pipeline·승인·편집·부분 게시 재개를 포함하며, 실제 API·광고 계정·제품 UI 검증과는 구분한다.
 
-## 구현 전 결정
+## live·웹 구현 전 결정
 
-- SC-001~SC-015의 루트 명세 반영과 후속 서비스 구현.
+- 원본 명세와 SC-001~SC-017의 차이 정리, H2/H3 승인, 웹 설계·검수 연동 준비.
 - 직접 촬영 또는 적법한 실물 자산, 광고 목적·destination. 고객 영상이나 고객 모집은 요구하지 않는다.
 - H1 공식 규정, H2 모델 접근·데이터 동의·비용 한도, H3 실제 광고 계정·권한·목표, H4 촬영·제출.
 

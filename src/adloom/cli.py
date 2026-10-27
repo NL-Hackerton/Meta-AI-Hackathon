@@ -29,7 +29,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         sub.add_argument("job_id")
         if command == "approve":
             sub.add_argument("--actor", required=True)
-            sub.add_argument("--digest", help="Digest printed by inspect; stale reviews are refused")
+            sub.add_argument(
+                "--digest", help="Digest printed by inspect; stale reviews are refused"
+            )
         if command == "edit":
             sub.add_argument("--hook-a")
             sub.add_argument("--hook-b")
@@ -39,29 +41,64 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         settings = load_config()
         if args.command == "run":
-            result: object = run_file(settings, args.video, args.note, args.region, args.budget,
-                                      args.note_audio, args.destination).model_dump(mode="json")
+            result: object = run_file(
+                settings,
+                args.video,
+                args.note,
+                args.region,
+                args.budget,
+                args.note_audio,
+                args.destination,
+            ).model_dump(mode="json")
         elif args.command == "list":
             store = JobStore(settings.data_dir)
-            result = [store.load(path.parent.name).model_dump(mode="json")
-                      for path in sorted((store.root / "jobs").glob("*/job.json"))]
+            result = [
+                store.load(path.parent.name).model_dump(mode="json")
+                for path in sorted((store.root / "jobs").glob("*/job.json"))
+            ]
         elif args.command == "inspect":
             result = inspect_job(settings, args.job_id)
         elif args.command == "resume":
             result = resume_job(settings, args.job_id).model_dump(mode="json")
         elif args.command == "approve":
-            result = approve_job(settings, args.job_id, args.actor, args.digest).model_dump(mode="json")
+            result = approve_job(settings, args.job_id, args.actor, args.digest).model_dump(
+                mode="json"
+            )
         elif args.command == "publish":
             result = publish_job(settings, args.job_id).model_dump(mode="json")
         else:
-            result = edit_job(settings, args.job_id, hook_a=args.hook_a, hook_b=args.hook_b,
-                              primary_text=args.primary_text, headline=args.headline).model_dump(mode="json")
+            result = edit_job(
+                settings,
+                args.job_id,
+                hook_a=args.hook_a,
+                hook_b=args.hook_b,
+                primary_text=args.primary_text,
+                headline=args.headline,
+            ).model_dump(mode="json")
         print(json.dumps(result, ensure_ascii=False))
         return 0
     except AdLoomError as error:
-        print(json.dumps({"error": error.error.model_dump(mode="json")}, ensure_ascii=False), file=sys.stderr)
+        print(
+            json.dumps({"error": error.error.model_dump(mode="json")}, ensure_ascii=False),
+            file=sys.stderr,
+        )
     except ValidationError:
-        print(json.dumps({"error": {"code": "E_INPUT_INVALID", "detail": "Input violates the data contract"}}), file=sys.stderr)
+        print(
+            json.dumps(
+                {"error": {"code": "E_INPUT_INVALID", "detail": "Input violates the data contract"}}
+            ),
+            file=sys.stderr,
+        )
     except OSError as error:
-        print(json.dumps({"error": {"code": "E_INPUT_INVALID", "detail": f"Local file operation failed ({type(error).__name__})"}}), file=sys.stderr)
+        print(
+            json.dumps(
+                {
+                    "error": {
+                        "code": "E_INPUT_INVALID",
+                        "detail": f"Local file operation failed ({type(error).__name__})",
+                    }
+                }
+            ),
+            file=sys.stderr,
+        )
     return 1

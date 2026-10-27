@@ -6,9 +6,14 @@ from adloom.schemas import BBox, FrameRate, TrackResult
 
 
 def track(boxes):
-    return TrackResult(source_width=1920, source_height=1080,
-                       fps=FrameRate(numerator=30, denominator=1), frame_count=len(boxes),
-                       boxes=tuple(boxes), coverage=sum(b is not None for b in boxes)/len(boxes))
+    return TrackResult(
+        source_width=1920,
+        source_height=1080,
+        fps=FrameRate(numerator=30, denominator=1),
+        frame_count=len(boxes),
+        boxes=tuple(boxes),
+        coverage=sum(b is not None for b in boxes) / len(boxes),
+    )
 
 
 def test_interpolation_and_missing_edges():
@@ -23,7 +28,7 @@ def test_interpolation_and_missing_edges():
 @pytest.mark.parametrize("aspect", ["9:16", "4:5", "1:1"])
 def test_feasible_crop_contains_box_with_margin(aspect):
     crop = importlib.import_module("adloom.crop")
-    boxes = [BBox(x=800.0+i*2, y=400.0, w=100.0, h=100.0) for i in range(20)]
+    boxes = [BBox(x=800.0 + i * 2, y=400.0, w=100.0, h=100.0) for i in range(20)]
     plan = crop.plan_crops(track(boxes), aspect)
     for rect, box in zip(plan.rects, boxes, strict=True):
         assert rect.inside(1920, 1080)
@@ -40,4 +45,4 @@ def test_low_coverage_and_infeasible_jump_are_explicit():
     assert len(set((r.x, r.y) for r in degraded.rects)) == 1
     jump = crop.plan_crops(track([center, BBox(x=1700.0, y=400.0, w=100.0, h=100.0)]), "9:16")
     assert jump.clipped_frames == (1,)
-    assert abs(jump.rects[1].x-jump.rects[0].x) <= jump.max_step_px
+    assert abs(jump.rects[1].x - jump.rects[0].x) <= jump.max_step_px

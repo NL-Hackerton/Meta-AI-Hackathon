@@ -1,6 +1,6 @@
 # 도메인 스키마 구현
 
-구현 위치: `src/adloom/schemas.py`. 사용자 요청에 따라 스키마부터 구현했다. 현재 44개 Pydantic 모델과 순수 검증 함수가 있으며, config·파일 저장·worker·API adapter·정책 문장 분류·렌더러·게시 서비스는 구현하지 않았다. 루트 SPEC는 보존하고 내부 계약 명료화는 SC-015로 기록한다.
+구현 위치: `src/adloom/schemas.py`. 사용자 요청에 따라 먼저 구현한 44개 Pydantic 모델과 순수 검증 함수를 재사용해 2026-10-27에 config·파일 저장·mock 어댑터·규칙 기반 정책·렌더·승인/게시·CLI를 연결했다. 별도 worker·웹 API·live 어댑터는 아직 없다. 루트 SPEC는 보존하고 내부 계약 명료화는 SC-015로 기록한다.
 
 ## 사용과 검증
 
@@ -29,7 +29,7 @@ result = assess_evidence("note-1", reference, note=note)
 assert result.valid
 ```
 
-`model_validate_json`은 JSON 원문에, `model_validate`는 이미 decode한 HTTP/adapter 입력에 사용한다. 선언된 tuple 필드의 JSON list만 tuple로 변환하며 시간·예산·좌표의 숫자 문자열이나 boolean을 수치로 바꾸지 않는다. ISO datetime 문자열은 timezone을 요구하고 UTC로 정규화한다. 파일 저장은 아직 없다.
+`model_validate_json`은 JSON 원문에, `model_validate`는 이미 decode한 HTTP/adapter 입력에 사용한다. 선언된 tuple 필드의 JSON list만 tuple로 변환하며 시간·예산·좌표의 숫자 문자열이나 boolean을 수치로 바꾸지 않는다. ISO datetime 문자열은 timezone을 요구하고 UTC로 정규화한다. 파일 저장은 `jobs.py`가 담당한다.
 
 ## 모델 그룹
 
@@ -66,14 +66,14 @@ assert result.valid
 
 ClaimCandidate는 provider용이고 status/actor를 받지 않는다. ClaimReview·ApprovalRecord는 신뢰된 서비스가 사람 동작을 확인한 뒤 만드는 기록이다. 이 타입으로 JSON을 읽었다는 사실만으로 실제 사람 승인이나 계정 권한이 생기지 않는다. ApprovalRecord.matches는 content 연결을 검사할 뿐 인증·파일 hash 실측을 대신하지 않는다.
 
-## 실행한 검증
+## 최초 스키마 구현 시 실행한 검증(2026-10-25)
 
-- `make check`: ruff 통과, mypy strict 통과, pytest **51개 통과**.
+- 당시 `make check`: ruff 통과, mypy strict 통과, pytest **51개 통과**. 후속 pipeline 검증은 STATUS에 별도로 기록한다.
 - 설치된 패키지로 InputBundle JSON round-trip, NFC 정규화, 유효·잘못된 note reference, 60초 media 거부를 실행했다.
 - 임시 FastAPI app의 실제 ASGI validation 경로에서 올바른 Understanding JSON은200, 수치 문자열은422를 확인했다. 이것은 제품 API 구현이 아니다.
 - 44개 모델의 JSON Schema 생성에 성공했다. 산출물은 Git 제외 `data/schema-smoke-mrooru91/`에 있다.
 - 미디어/승인·상태 독립 리뷰에서 발견한 마지막 frame 이후 시간, 잘못된 반복, 추가 video, journal key 충돌, FAILED 재개 상태, PREPARED abandon, Image/Voice fallback 혼동을 회귀 사례로 추가했다.
 
-## 아직 구현하지 않은 검사
+## 후속 서비스 검증과 남은 경계
 
-파일 존재·symlink containment·SHA256 실측, config의 env/LIVE gate, 상태 전이·원자 저장, 사람 인증·H1~H4, provider 요청/응답, 정책의 문장 의미 분류, 렌더 품질·실제 PAUSED 게시. 따라서 T01의 config 부분과 T00의 나머지 항목을 DONE으로 표시하지 않는다. AC-01/03의 schema 부분과 typed model 제약만 검증했으며 전체 단계 AC 통과로 확대하지 않는다.
+2026-10-27에 파일 hash 실측·job 경로 containment·설정/live 차단·전이/원자 저장·mock 렌더·승인 digest·게시 재개를 연결하고 테스트했다. 스키마 함수만으로 이 검사가 수행된다고 해석하지 않는다. 사람의 대회 약관 수락·계정 권한·실제 provider 응답·정책 문장의 의미·실영상 품질·실제 PAUSED 광고·웹 인증은 검증하지 않았다.

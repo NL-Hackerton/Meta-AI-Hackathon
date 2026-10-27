@@ -1,6 +1,6 @@
 # AdLoom 코드베이스 설계 계약
 
-작성: 2026-10-25. [Architecture Spine](../../_bmad-output/planning-artifacts/architecture/architecture-AdLoom-2026-10-25/ARCHITECTURE-SPINE.md)의 서비스 설계 계약이다. schemas.py의 모델·순수 검증은 구현됐고 [schemas.md](schemas.md)가 현재 사용 기준이다. 나머지 서비스·제품 API는 구현 전이다. root SPEC는 보존하고 TASKS의 상태·메모만 갱신한다. 설계는 SC-014, 데이터 규약 명료화는 SC-015에 기록한다.
+작성: 2026-10-25, 상태 갱신: 2026-10-27. [Architecture Spine](../../_bmad-output/planning-artifacts/architecture/architecture-AdLoom-2026-10-25/ARCHITECTURE-SPINE.md)의 서비스 설계 계약이다. 기존 스키마에 config·atomic job 저장·크롭·정책·mock 어댑터·단계·렌더·승인/게시·CLI를 연결했다. 현재 실행은 data-root lock 아래 동기 CLI이며 아래의 별도 worker·HTTP API·웹 편집·claim 검토 계약은 설계 상태다. 실행 방법은 루트 README, 태스크별 증거는 STATUS에 있다. root SPEC는 보존하며 설계는 SC-014, 데이터 규약은 SC-015, 재개 기록은 SC-017에 둔다.
 
 ## 1. 모듈별 단일 책임
 
@@ -224,4 +224,4 @@ HTTPX는 trust_env=false와 follow_redirects=false를 기본으로 한다. provi
 - [Starlette Responses](https://starlette.dev/responses): FileResponse Range 지원. 패키지 핀에서 실제206 응답을 별도 확인한다.
 - [Meta SAM client libraries](https://dev.meta.ai/docs/sam/client-libraries), [PyPI](https://pypi.org/project/meta-sam-parser/0.1.0/): public API, half-open 좌표, zero-match/diagnostics/incomplete, source 및 license.
 - [패키지 핀](dependencies.md), [OSS 선택](../../research/oss.md), [원본 보존 자료](../../third_party/README.md).
-- 외부 코드 사용·사전 개발 규정은 H1 미확인이다. 이번 사용자 요청으로 의존성과 원본을 확보했으며, 자체 제품 기능 개발·대회 허용 확정을 수행한 것으로 표현하지 않는다.
+- 2026-10-25 baseline은 의존성과 원본 확보 범위였고, 2026-10-27에 mock CLI 경로를 구현했다. 공개 규정의 OSS 허용 조건은 SC-016에 기록했다. 사전 자체 코드 조건·참가자 약관 수락·live 실행 승인·실제 제품 품질은 별도 확인 대상이다.

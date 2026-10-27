@@ -6,7 +6,9 @@ import pytest
 
 from adloom.config import AdLoomError
 
-FIXTURE = Path("tests/fixtures/understanding/19eb07d4553ab7aa988d4b7acd932cb694633fded3c49b3ff664aa32e13d5a48.json")
+FIXTURE = Path(
+    "tests/fixtures/understanding/19eb07d4553ab7aa988d4b7acd932cb694633fded3c49b3ff664aa32e13d5a48.json"
+)
 
 
 class Replies:
@@ -40,18 +42,37 @@ def test_probe_rejects_sixty_seconds_before_processing():
         stage.validate_duration(60.0)
 
 
-def test_audio_note_is_filled_by_transcription():
+@pytest.mark.parametrize(
+    "fragments, valid",
+    [
+        (("\u1100\u1161" * 200,), True),
+        (("가" * 100, "나" * 100), False),
+        ((), False),
+    ],
+)
+def test_transcribed_note_normalization_and_combined_length(fragments, valid):
     stage = importlib.import_module("adloom.stages.input")
     from adloom.schemas import Brief, Segment
 
     class Voice:
         def transcribe(self, media, language):
-            return (Segment(start_us=0, end_us=1000000, text="제품 설명"),)
+            return tuple(
+                Segment(start_us=i * 1000000, end_us=(i + 1) * 1000000, text=text)
+                for i, text in enumerate(fragments)
+            )
 
-    brief = Brief(video_path="input/source.mp4", note_audio_path="input/note.wav",
-                  region="서울", daily_budget_krw=10000)
-    result = stage.fill_note(brief, Path("data"), Voice())
-    assert result.note_text == "제품 설명"
+    brief = Brief(
+        video_path="input/source.mp4",
+        note_audio_path="input/note.wav",
+        region="서울",
+        daily_budget_krw=10000,
+    )
+    if valid:
+        result = stage.fill_note(brief, Path("data"), Voice())
+        assert result.note_text == "가" * 200
+    else:
+        with pytest.raises(AdLoomError, match="E_INPUT_INVALID"):
+            stage.fill_note(brief, Path("data"), Voice())
 
 
 def test_image_failure_preserves_real_frame_and_silent_video_has_no_subtitles(tmp_path):
@@ -71,8 +92,14 @@ def test_image_failure_preserves_real_frame_and_silent_video_has_no_subtitles(tm
         def generate_scene(self, prompt, size):
             raise AdLoomError("E_API_SCHEMA", "enrich", "injected failure")
 
-    result = stage.enrich(normalized, media, Understanding.model_validate_json(FIXTURE.read_bytes()),
-                          tmp_path, BrokenImage(), MockVoice(tmp_path))
+    result = stage.enrich(
+        normalized,
+        media,
+        Understanding.model_validate_json(FIXTURE.read_bytes()),
+        tmp_path,
+        BrokenImage(),
+        MockVoice(tmp_path),
+    )
     assert result.image_fallback and result.warnings
     assert not result.transcript
     from PIL import Image

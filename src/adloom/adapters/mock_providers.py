@@ -31,25 +31,49 @@ class MockSpark:
 
 class MockTracking:
     def track(self, video: Path, prompt: str) -> TrackResult:
-        output = subprocess.check_output([
-            "ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames",
-            "-show_streams", "-of", "json", str(video),
-        ], timeout=60)
+        output = subprocess.check_output(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-count_frames",
+                "-show_streams",
+                "-of",
+                "json",
+                str(video),
+            ],
+            timeout=60,
+        )
         stream = json.loads(output)["streams"][0]
-        width, height, count = int(stream["width"]), int(stream["height"]), int(stream["nb_read_frames"])
+        width, height, count = (
+            int(stream["width"]),
+            int(stream["height"]),
+            int(stream["nb_read_frames"]),
+        )
         fps = Fraction(stream["avg_frame_rate"])
         boxes: list[BBox | None] = []
         for index in range(count):
             t = index / float(fps)
-            boxes.append(None if index % 13 == 0 else BBox(
-                x=width*(880+180*math.sin(t*0.6))/1920,
-                y=height*(460+80*math.sin(t*0.4))/1080,
-                w=width*160/1920, h=height*160/1080, score=1.0,
-            ))
+            boxes.append(
+                None
+                if index % 13 == 0
+                else BBox(
+                    x=width * (880 + 180 * math.sin(t * 0.6)) / 1920,
+                    y=height * (460 + 80 * math.sin(t * 0.4)) / 1080,
+                    w=width * 160 / 1920,
+                    h=height * 160 / 1080,
+                    score=1.0,
+                )
+            )
         return TrackResult(
-            source_width=width, source_height=height, frame_count=count,
+            source_width=width,
+            source_height=height,
+            frame_count=count,
             fps=FrameRate(numerator=fps.numerator, denominator=fps.denominator),
-            boxes=tuple(boxes), coverage=sum(b is not None for b in boxes)/count,
+            boxes=tuple(boxes),
+            coverage=sum(b is not None for b in boxes) / count,
         )
 
 
@@ -64,7 +88,7 @@ class MockImage:
         image = Image.new("RGB", size)
         draw = ImageDraw.Draw(image)
         for y in range(size[1]):
-            draw.line((0, y, size[0], y), fill=(18, 40+int(35*y/size[1]), 38))
+            draw.line((0, y, size[0], y), fill=(18, 40 + int(35 * y / size[1]), 38))
         image.save(path, format="PNG")
         return path
 
@@ -90,8 +114,10 @@ class MockMarketing:
             raise AdLoomError("E_INPUT_INVALID", "publish", "Unknown resource")
         if resource in {"campaign", "adset", "ad"} and payload.get("status") != "PAUSED":
             raise AdLoomError("E_INPUT_INVALID", "publish", "Advertising resources must be paused")
-        if self.fail_on == len(self.requests)+1:
+        if self.fail_on == len(self.requests) + 1:
             self.fail_on = None
-            raise PublishNotSent("E_PUBLISH_PARTIAL", "publish", "Injected pre-request failure", True)
+            raise PublishNotSent(
+                "E_PUBLISH_PARTIAL", "publish", "Injected pre-request failure", True
+            )
         self.requests.append({"resource": resource, "payload": payload, "key": operation_key})
         return "fixture-" + hashlib.sha256(operation_key.encode()).hexdigest()[:24]
