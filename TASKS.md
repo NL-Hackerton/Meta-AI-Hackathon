@@ -19,12 +19,12 @@ T00~T09는 mock만으로 끝나며 킥오프(10/26) 전에 돌릴 수 있는 범
 | T06 | DONE | 스테이지: 입력·이해·추적·보강 | T02, T03, T04, T05 | `stages/` | AC-01, 02, 03, 04, 08, 10 | 10/25 | 10/27 정규화·음성 설명 전사·1회 schema repair·정책 재검사·추적/중앙 대체·Image 실패 대체를 구현했다. make check 151개와 실제 입력→보강 파일 처리 smoke 통과. live 모델 품질은 미검증이다. |
 | T07 | DONE | `render.py` + 조립 스테이지: ffmpeg 렌더, 훅·자막·엔드카드 오버레이, 폰트 | T03 | `render.py`, `stages/assemble.py` | AC-11, 12, 13, 14 | 10/25 | 10/27 5080 서버에서 6종 렌더·H.264/yuv420p/AAC·길이·반복 frame hash·훅 제거를 검증했다. make check 154개 통과. 시간축/자막 매핑·폰트/소스 hash·허용 소스 검증 포함. 결정론은 동일 build 범위다. |
 | T08 | DONE | Marketing Mock과 게시 스테이지, 멱등성 | T02, T05 | `stages/publish.py` | AC-15, 16, 17 | 10/25 | 10/27 승인 digest·실제 파일 hash·최종 정책 재검사·operation journal·부분 재개를 구현했다. make check 159개, 실제 저장 smoke에서 9요청·광고2개·중복0 확인. PAUSED는 campaign/adset/ad에 강제하며 결과 불명은 재전송하지 않는다. |
-| T09 | TODO | `cli.py`와 파이프라인 오케스트레이터, mock E2E | T06, T07, T08 | `cli.py`, `pipeline.py` | AC-20 | 10/25 | |
-| T10 | TODO | Live Spark 어댑터 (**H2**) | T09 | `adapters/spark.py` | live 테스트, AC-03·04를 Live 응답 fixture로 재검증 | 10/27 | |
-| T11 | TODO | Live SAM 어댑터, 마스크 → 박스 변환 (**H2**) | T09 | `adapters/sam.py` | live 테스트, AC-06 재검증 | 10/28 | |
-| T12 | TODO | Live Image·Voice 어댑터 (**H2**) | T09 | `adapters/image.py`, `voice.py` | live 테스트, AC-10 | 10/29 | |
-| T13 | TODO | Live Marketing 어댑터 (**H3**) | T09 | `adapters/marketing.py` | live 테스트, AC-16·17 재검증 | 11/2 | |
-| T14 | TODO | 웹 승인 화면: 변형 6개 미리보기, `degraded`·정책 플래그 표시, 승인 버튼 → `approval.json` | T09 | `web/` | AC-15 (웹 경로) + 수동 확인 | 10/30 | |
+| T09 | DONE | `cli.py`와 파이프라인 오케스트레이터, mock E2E | T06, T07, T08 | `cli.py`, `pipeline.py` | AC-20 | 10/25 | 10/27 run/list/inspect/resume/edit/approve/publish를 연결했다. 5080 make check 160개와 실제 CLI AWAITING_APPROVAL→APPROVED→PUBLISHED_PAUSED·6종 파일 smoke 통과. 편집 시 revision 증가·승인 무효화·재렌더/재승인 회귀 포함. |
+| T10 | BLOCKED | Live Spark 어댑터 (**H2**) | T09 | `adapters/spark.py` | live 테스트, AC-03·04를 Live 응답 fixture로 재검증 | 10/27 | T09 완료 후 H2 사람 게이트에 도달했다. 모델 접근·데이터 동의·비용 한도·사용자 live 실행 승인 대기. |
+| T11 | BLOCKED | Live SAM 어댑터, 마스크 → 박스 변환 (**H2**) | T09 | `adapters/sam.py` | live 테스트, AC-06 재검증 | 10/28 | H2 대기. 공식 box 응답과 원본 마스크 변환 계약의 차이는 SC-009·010에 기록되어 있다. |
+| T12 | BLOCKED | Live Image·Voice 어댑터 (**H2**) | T09 | `adapters/image.py`, `voice.py` | live 테스트, AC-10 | 10/29 | H2 모델 접근·전송/보관 동의·비용 한도·live 실행 승인 대기. |
+| T13 | BLOCKED | Live Marketing 어댑터 (**H3**) | T09 | `adapters/marketing.py` | live 테스트, AC-16·17 재검증 | 11/2 | H3 실제 계정·권한·목표·CTA/destination·Graph 버전·예산·일정 및 실행 승인 대기. |
+| T14 | BLOCKED | 웹 승인 화면: 변형 6개 미리보기, `degraded`·정책 플래그 표시, 승인 버튼 → `approval.json` | T09 | `web/` | AC-15 (웹 경로) + 수동 확인 | 10/30 | 새 화면의 코드 작성 전 Figma 설계·검수를 요구하는 UI 지침을 확인했다. figma-use·figma-generate-design 스킬 미등록 및 CLI 부재로 선행 검수를 실행할 수 없다. 웹 화면·서버는 미구현이다. |
 | T15 | TODO | 실영상 LIVE 리허설: 실제 점포 영상 1~2건 전 과정, 실패 기록 | T10~T13, T14 | `docs/rehearsal.md` | 완료 정의(§1) | 11/3 | |
 | T16 | BLOCKED | 제출물: README, 데모 대본·촬영 체크리스트 (**H1, H4**) | T15 | `README.md`, `docs/demo.md` | — | 11/4 | 10/27 Official Rules 원문을 확인했다. 원본 9절의 미공개 기록과 달라 원본 7절에 따라 SC-016을 제안했다. H1 참가자 수락·사전 자체 코드 조건, H4 로그인 뒤 제출 형식 확인 및 T15 완료를 기다린다. |
 
