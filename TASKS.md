@@ -10,8 +10,8 @@ T00~T09는 mock만으로 끝나며 킥오프(10/26) 전에 돌릴 수 있는 범
 
 | ID | 상태 | 내용 | 선행 | 파일 | 담당 AC | 목표일 | 메모 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| T00 | IN_PROGRESS | 스캐폴드: pyproject, Makefile(`make check`), ruff·mypy·pytest 설정, `AGENTS.md`, ffmpeg로 1920×1080 10초 합성 샘플 영상(움직이는 도형) 생성 스크립트 | 없음 | `pyproject.toml`, `Makefile`, `tests/fixtures/make_sample.sh` | AC-19 스캔 테스트 골격 | 10/24 | 스키마 요청의 검증 prerequisite로 패키징·개발 도구·Makefile 구현. 합성 생성기·전체 비밀 스캔은 미구현 |
-| T01 | IN_PROGRESS | `schemas.py`, `config.py`: 모델·상수, LIVE 게이트, Contributor ID 거부 | T00 | `schemas.py`, `config.py` | AC-01(스키마), AC-18, AC-21 | 10/24 | 사용자 지시로 schemas 범위 선행: 모델44개·회귀51개·make check 및 JSON/ASGI smoke 통과. config/env/LIVE gate 미구현으로 전체 T01·AC18/21 완료 아님 |
+| T00 | IN_PROGRESS | 스캐폴드: pyproject, Makefile(`make check`), ruff·mypy·pytest 설정, `AGENTS.md`, ffmpeg로 1920×1080 10초 합성 샘플 영상(움직이는 도형) 생성 스크립트 | 없음 | `pyproject.toml`, `Makefile`, `tests/fixtures/make_sample.sh` | AC-19 스캔 테스트 골격 | 10/24 | 스키마 요청의 검증 prerequisite로 패키징·개발 도구·Makefile 구현. 합성 생성기·전체 비밀 스캔은 미구현. 10/27 재개 점검: TODO 전용 선택 규칙에는 IN_PROGRESS 재개 경로가 없어 이번 루프를 중단했다(SC-017). |
+| T01 | IN_PROGRESS | `schemas.py`, `config.py`: 모델·상수, LIVE 게이트, Contributor ID 거부 | T00 | `schemas.py`, `config.py` | AC-01(스키마), AC-18, AC-21 | 10/24 | 사용자 지시로 schemas 범위 선행: 모델44개·회귀51개·make check 및 JSON/ASGI smoke 통과. config/env/LIVE gate 미구현으로 전체 T01·AC18/21 완료 아님. 10/27: T00 미완료 및 기존 스키마와 원본 계약 차이의 후속 적용 결정이 필요하다(SC-015·017). |
 | T02 | TODO | `jobs.py`: Job 저장, 상태 머신 전이 규칙(§3), `job.json` 원자적 쓰기 | T01 | `jobs.py` | §3 전이 테스트 | 10/24 | |
 | T03 | TODO | `crop.py` 순수 함수와 박스 보간 | T01 | `crop.py` | AC-06, 07, 09 | 10/24 | |
 | T04 | TODO | `policy.py` 규칙 기반 점검과 순화 (규칙 표는 `policy_rules.yaml`) | T01 | `policy.py`, `policy_rules.yaml` | AC-05 | 10/25 | |
@@ -26,13 +26,13 @@ T00~T09는 mock만으로 끝나며 킥오프(10/26) 전에 돌릴 수 있는 범
 | T13 | TODO | Live Marketing 어댑터 (**H3**) | T09 | `adapters/marketing.py` | live 테스트, AC-16·17 재검증 | 11/2 | |
 | T14 | TODO | 웹 승인 화면: 변형 6개 미리보기, `degraded`·정책 플래그 표시, 승인 버튼 → `approval.json` | T09 | `web/` | AC-15 (웹 경로) + 수동 확인 | 10/30 | |
 | T15 | TODO | 실영상 LIVE 리허설: 실제 점포 영상 1~2건 전 과정, 실패 기록 | T10~T13, T14 | `docs/rehearsal.md` | 완료 정의(§1) | 11/3 | |
-| T16 | TODO | 제출물: README, 데모 대본·촬영 체크리스트 (**H1, H4**) | T15 | `README.md`, `docs/demo.md` | — | 11/4 | |
+| T16 | BLOCKED | 제출물: README, 데모 대본·촬영 체크리스트 (**H1, H4**) | T15 | `README.md`, `docs/demo.md` | — | 11/4 | 10/27 Official Rules 원문을 확인했다. 원본 9절의 미공개 기록과 달라 원본 7절에 따라 SC-016을 제안했다. H1 참가자 수락·사전 자체 코드 조건, H4 로그인 뒤 제출 형식 확인 및 T15 완료를 기다린다. |
 
 ## 사람 게이트
 
 | 게이트 | 내용 | 막히는 태스크 | 상태 |
 | --- | --- | --- | --- |
-| H1 | Official Rules 확인(10/26 전 공개): 허용 모델, 기존 코드 사용, 제출 형식 | T16 | 대기 |
-| H2 | API 키 발급·환경변수 설정, 한국에서 호출 가능한지 확인 | T10~T12 live 검증 | 대기 |
-| H3 | 테스트 Meta 앱·광고 계정·페이지·토큰 준비 | T13 live 검증, T15 | 대기 |
-| H4 | 데모 영상 촬영·제출 (사람이 직접) | T16 | 대기 |
+| H1 | Official Rules 확인(10/26 전 공개): 허용 모델, 기존 코드 사용, 제출 형식 | T16 | 원문 확인(10/27, SC-016). 참가 승인·자격·약관 수락, 사전 자체 코드 조건, 로그인 뒤 제출 형식은 대기한다. |
+| H2 | API 키 발급·환경변수 설정, 한국에서 호출 가능한지 확인 | T10~T12 live 검증 | 대기. Model API 접근·결제 수단·크레딧 적용·초과 비용 한도·전송/보관 동의 및 사용자 실행 승인이 필요하다. 키 조회·live 호출은 하지 않았다. |
+| H3 | 테스트 Meta 앱·광고 계정·페이지·토큰 준비 | T13 live 검증, T15 | 대기. 실제 계정·권한·목적·CTA/destination·Graph 버전·KRW 예산·일정 및 사용자 실행 승인이 필요하다. 계정 연동은 하지 않았다. |
+| H4 | 데모 영상 촬영·제출 (사람이 직접) | T16 | 대기. 공개 포털 경로는 확인했으나 양식은 로그인 뒤에 있다. 참가자가 제출 요구사항을 확인하고 직접 촬영·제출한다. |

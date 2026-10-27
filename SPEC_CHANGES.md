@@ -124,6 +124,28 @@
 - 구현 상태: 사용자 지시에 따른 스키마 범위와 최소 검사 환경 구현·51개 회귀·JSON/ASGI smoke 완료. root SPEC의 필드 표·T01 config/LIVE gate·나머지 서비스·H1~H4를 완료 처리하지 않는다.
 - 상태: 제안
 
+### SC-016 · 공개된 Official Rules와 사람 게이트 갱신
+- 제안자/날짜: 재개 점검 / 2026-10-27
+- 관련 섹션·태스크: 원본 7절·9절, H1·H2·H4, T16
+- 근거: [Meta 행사 페이지](https://dev.meta.ai/events/global-hackathon)는 여전히 공개 예정이라고 안내하지만, 연결된 [Official Rules 및 Event Waiver](https://cerebralvalley.ai/e/meta-ai-developer-hackathon/waiver)의 동적 본문에서 규정 전문을 확인했다. 페이지 하단 날짜는 October 25, 2026이며 실제 최초 공개 시점은 확인하지 못했다.
+- 심사 기준: “Impact (30%)”, “Use of Meta AI Tooling (25%)”, “Technical Depth & Execution (20%)”, “Demo (25%)”를 명시한다. 참가 신청 평가와 프로젝트 심사를 구분하며, 메인 페이지의 트랙별 소개만으로 프로젝트 심사표를 대체하지 않는다.
+- 허용 모델: 규정은 “Muse Spark, Glimmer, SAM 3, and any other Meta AI products identified on the Event page”를 명시한다. 행사 페이지에는 Muse Spark series·Muse Image·SAM 3.1·Meta open weights가 있다. API의 정확한 모델 ID·Muse Voice 사용 범위·한국 계정 접근은 이 문구만으로 확정하지 않는다. INV-1·INV-4를 변경하거나 live를 승인하지 않는다.
+- 기존 코드: “Participants may also include open source software or hardware, provided applicable open source licenses are followed and the Submission enhances or builds upon the underlying open source product.” 라이선스를 준수하고 기존 OSS를 확장하는 사용은 허용한다. 대회 전 작성한 자체 코드의 허용 여부·개발 시작 시점 제한·별도 공개 의무는 확인한 규정 본문에 명시되지 않았다. 기존 스키마와 외부 코드의 사용 범위를 참가자 안내 또는 주최 측 답변으로 확인한다.
+- 권리·참가 조건: 참가 승인, 만 18세 및 거주지 성년 요건, 제외 대상 여부, 팀 대표 권한을 참가자가 확인한다. Indie 팀은 최대 4명이다. 참가자는 제출물 소유권을 유지하지만 주최 측에 영구적·취소 불가·전 세계·무상·비독점 이용권을 부여하며, 자료의 비밀유지도 보장되지 않는다. 약관 수락·서명은 수행하지 않았다.
+- 제출: 규정이 지정한 [제출 포털](https://cerebralvalley.ai/e/meta-ai-developer-hackathon/hackathon/submit)은 비로그인 브라우저에서 로그인 화면으로 이동했다. 데모 영상 길이·언어·파일 형식·저장소 공개 여부는 확인하지 못했다. 행사 페이지의 11월 4일 21:00 ET를 America/New_York 기준으로 계산한 결과는 11월 5일 11:00 KST로 원본 마감과 같다.
+- 비용: waiver가 연결한 `Meta Model API: Global AI Developer Hackathon Credit Terms`의 1.2·3.5·3.6·3.7·3.8을 확인했다. Model API 이용에는 유효한 결제 수단이 필요하고, 적용된 $150 크레딧은 소진 또는 계정 종료까지 유지되며 소진 후 사용료는 결제 수단으로 청구된다. 크레딧 신청·사용은 대회 참가나 심사에 필수가 아니다. waiver의 “valid for a 10-day development window”와 유효기간 표현이 달라 Credit Terms의 크레딧 관련 우선 조항을 함께 확인해야 한다.
+- 제안: 원본 9절의 규정 미공개 항목을 공개 원문·심사 배점·OSS 조건으로 갱신하되 사전 자체 코드·제출 양식은 미확인으로 분리한다. H1은 원문 확인과 참가자 수락을 구분하고, H2는 결제 수단·초과 사용 비용 한도·데이터 전송/보관 동의를 확인한다. H3는 실제 계정 권한·광고 목적·Graph 버전·예산·일정 및 사용자 실행 승인을 유지한다. H4는 로그인 후 양식 확인과 직접 촬영·제출을 유지한다.
+- 상태: 제안
+
+### SC-017 · 부분 진행 태스크의 재개 규칙과 구현 기준 확정
+- 제안자/날짜: 재개 점검 / 2026-10-27
+- 관련 섹션·태스크: 원본 4절·7절, T00~T09, SC-015
+- 근거: TASKS의 T00·T01은 IN_PROGRESS이고 DONE인 태스크가 없다. 상태표를 읽어 선행 조건을 계산한 결과 선택 가능한 TODO는 0개였다. 원본 7절은 이 경우 종료 보고를 요구하며 IN_PROGRESS 재개 절차를 정의하지 않는다.
+- 구현 기준 차이: 원본 4절은 초(float)·리스트를 사용하지만 기존 `schemas.py`는 정수 microseconds·반개구간·immutable tuple을 사용한다. SC-015는 스키마 구현 요청의 범위를 기록했으며 후속 서비스 계약까지 원본에 반영한 승인은 아니다. 원본의 실패 재개·크롭·렌더·게시 계약에도 SC-001~010의 미반영 제안이 남아 있다.
+- 제안: 이미 진행 중인 태스크를 재개할 수 있도록 선택 규칙을 명시하고 T00→T01→선행 완료된 첫 TODO 순서를 적용한다. 후속 서비스에 적용할 스키마·전이·렌더·게시 계약은 관련 SC별로 채택 또는 반려한 뒤 확정한다. 기존 구현을 삭제하거나 두 번째 스키마 체계를 추가하는 방식으로 차이를 숨기지 않는다.
+- 경계: 이번 점검은 T00/T01을 TODO나 DONE으로 임의 변경하지 않으며 원본 SPEC·제품 코드·테스트를 수정하지 않는다. 재개 규칙과 구현 기준이 확정되면 태스크별 실패 테스트→최소 구현→make check·INV→실행 검증→로컬 커밋 순서로 진행한다.
+- 상태: 제안
+
 ## 상세 설계와 확인 자료
 
 - [BMAD kernel](_bmad-output/specs/spec-adloom/SPEC.md)
