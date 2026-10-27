@@ -1,0 +1,8 @@
+[core]
+project_name = "AdLoom"
+output_folder = "_bmad-output"
+communication_language = "Korean"
+document_output_language = "Korean"
+
+[modules.bmm]
+planning_artifacts = "_bmad-output/planning-artifacts"

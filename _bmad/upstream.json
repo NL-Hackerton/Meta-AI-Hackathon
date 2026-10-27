@@ -1,0 +1,26 @@
+{
+  "repository": "https://github.com/bmad-code-org/BMAD-METHOD",
+  "revision": "61e01f82644c4bb533750cfa0d6d61ab61d2cc9b",
+  "files": {
+    "_bmad/scripts/memlog.py": {
+      "source": "skills/bmad/scripts/memlog.py",
+      "sha256": "aedb4db43d186105d46f58ac8f3dc00567c108af00a1d4e71b17580b0e649749"
+    },
+    "_bmad/scripts/resolve_config.py": {
+      "source": "skills/bmad/scripts/resolve_config.py",
+      "sha256": "c4cba3411d49a696d2e545a3cd3b77e8042aa867ef1ce7de2af8d3b8df158f60"
+    },
+    "_bmad/scripts/resolve_customization.py": {
+      "source": "skills/bmad/scripts/resolve_customization.py",
+      "sha256": "92f488e327338610dc380734b5b55d6d8c671716665dfcb791f31e7dd3fdb1e2"
+    },
+    "_bmad/scripts/config_utils.py": {
+      "source": "skills/bmad/scripts/config_utils.py",
+      "sha256": "a4bba671cb3aedbf80fa4309d9c96afe6674f8de656a44a7fe67324815de437d"
+    },
+    "_bmad/LICENSE": {
+      "source": "LICENSE",
+      "sha256": "0aa79baf6328b4a1e694ce10a12ffc36d7666554da128dff0e8fcda0fc536a66"
+    }
+  }
+}

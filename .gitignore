@@ -1,0 +1,37 @@
+# Python 가상환경·캐시
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# 비밀·로컬 설정 (예시 파일은 추적)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 작업 데이터·고객 미디어·로컬 산출물
+data/
+private/
+.private/
+artifacts/
+outputs/
+*.log
+*.tmp
+
+# 편집기·OS
+.DS_Store
+.idea/
+.vscode/
+
+# uv.lock, third_party/ 소스, 폰트 파일은 추적한다.

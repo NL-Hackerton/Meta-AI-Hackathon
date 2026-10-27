@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "retrieved_on": "2026-10-25",
+  "status": "외부 자료 확보만 완료. 제품 통합·해커톤 허용(TASKS.md H1)은 미확정",
+  "artifacts": [
+    {
+      "path": "third_party/meta-sam-parser/meta_sam_parser-0.1.0.tar.gz",
+      "name": "meta-sam-parser",
+      "version": "0.1.0",
+      "kind": "sdist",
+      "source_url": "https://files.pythonhosted.org/packages/2b/bc/af93a1fa4834124816b3fa0165aa9a6c35eb90d11a1dfe7c257992381f44/meta_sam_parser-0.1.0.tar.gz",
+      "release_url": "https://github.com/meta-models/meta-sam/releases/tag/meta-sam-parser%400.1.0",
+      "repository": "https://github.com/meta-models/meta-sam",
+      "tag": "meta-sam-parser@0.1.0",
+      "commit": "cdf2e8b5625a3471e6dab3be7127b80fa83beb0d",
+      "sha256": "d59ca55993c5975fc8910f29b76e33499bc2870f79e9afcc30c916f17ef3bb40",
+      "sha256_verified_against": [
+        "https://pypi.org/pypi/meta-sam-parser/json (urls[].digests.sha256)",
+        "GitHub release asset digest (gh api repos/meta-models/meta-sam/releases/tags/meta-sam-parser@0.1.0)"
+      ],
+      "bytes": 33694,
+      "license": "SAM License (Last Updated: November 19, 2025)",
+      "license_file": "third_party/meta-sam-parser/LICENSE",
+      "modified": false,
+      "purpose": "SAM 3.1 응답 텍스트(box/mask 특수 토큰)를 레코드로 파싱하는 공식 Python 파서의 원본 소스 확보. pyproject.toml 런타임 의존성(meta-sam-parser==0.1.0)의 출처 대조용"
+    },
+    {
+      "path": "third_party/meta-sam-parser/LICENSE",
+      "name": "SAM License",
+      "kind": "license",
+      "source_url": "https://raw.githubusercontent.com/meta-models/meta-sam/cdf2e8b5625a3471e6dab3be7127b80fa83beb0d/python/LICENSE",
+      "derived_from": "meta_sam_parser-0.1.0.tar.gz 내부 meta_sam_parser-0.1.0/LICENSE를 수정 없이 추출",
+      "commit": "cdf2e8b5625a3471e6dab3be7127b80fa83beb0d",
+      "sha256": "4dea99bfaa016e21bc860d73f344236bd1e5c4977d1a9a8fd32f822b500ae1be",
+      "sha256_verified_against": [
+        "sdist 내부 LICENSE",
+        "태그 커밋의 python/LICENSE 및 저장소 루트 LICENSE(동일 해시)"
+      ],
+      "bytes": 7353,
+      "license": "SAM License",
+      "modified": false,
+      "purpose": "SAM License 1.b.i의 재배포 시 계약서 사본 제공 의무 충족용 별도 동봉"
+    },
+    {
+      "path": "third_party/fonts/noto-sans-kr/NotoSansKR[wght].ttf",
+      "name": "Noto Sans KR",
+      "kind": "font",
+      "variable_axes": "wght 100~900",
+      "source_url": "https://raw.githubusercontent.com/google/fonts/b38c5c93af322c45f633e17ac440ec1e6c94d489/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
+      "repository": "https://github.com/google/fonts",
+      "repository_path": "ofl/notosanskr/NotoSansKR[wght].ttf",
+      "commit": "b38c5c93af322c45f633e17ac440ec1e6c94d489",
+      "commit_note": "ofl/notosanskr 경로를 마지막으로 바꾼 google/fonts 커밋(2026-03-25). METADATA.pb의 업스트림 소스 커밋(notofonts/noto-cjk 523d033d6cb47f4a80c58a35753646f5c3608a78)과는 다른 식별자",
+      "git_blob_sha1": "b386890ba945e1f39448a6b59f20c5d194f58808",
+      "sha256": "194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252",
+      "sha256_verified_against": [
+        "로컬 git hash-object 결과가 GitHub contents API의 blob sha와 일치. 상류가 SHA-256을 공개하지 않으므로 SHA-256은 확보 시점 로컬 계산값"
+      ],
+      "bytes": 10414588,
+      "license": "OFL-1.1",
+      "license_file": "third_party/fonts/noto-sans-kr/OFL.txt",
+      "modified": false,
+      "purpose": "한글 자막·문구 PNG 렌더용 단일 폰트 파일. 실제 렌더 품질은 미검증"
+    },
+    {
+      "path": "third_party/fonts/noto-sans-kr/OFL.txt",
+      "name": "SIL Open Font License 1.1 (Noto Sans KR)",
+      "kind": "license",
+      "source_url": "https://raw.githubusercontent.com/google/fonts/b38c5c93af322c45f633e17ac440ec1e6c94d489/ofl/notosanskr/OFL.txt",
+      "commit": "b38c5c93af322c45f633e17ac440ec1e6c94d489",
+      "git_blob_sha1": "1c9f43281b8f216c5461fe9ac729afbade7724e4",
+      "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
+      "sha256_verified_against": [
+        "로컬 git hash-object 결과가 GitHub contents API의 blob sha와 일치. SHA-256은 로컬 계산값"
+      ],
+      "bytes": 4388,
+      "license": "OFL-1.1",
+      "modified": false,
+      "purpose": "폰트 재배포 시 저작권·라이선스 고지 동봉"
+    }
+  ],
+  "excluded": [
+    {
+      "name": "fastapi/full-stack-fastapi-template",
+      "reason": "React·SQLModel·PostgreSQL·JWT·Docker Compose 포함, Python >=3.14 요구. 현 계약(단일 HTML·로컬 파일·Python 3.12 핀)과 맞지 않아 가져오지 않음"
+    },
+    {
+      "name": "fastapi/fastapi-new",
+      "reason": "생성기가 hello-world main.py 한 개와 fastapi[standard] 추가만 수행. 가져올 코드가 사실상 없고 standard extra가 런타임 핀 범위를 넘어 가져오지 않음"
+    }
+  ]
+}

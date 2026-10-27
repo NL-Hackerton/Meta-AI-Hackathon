@@ -1,0 +1,56 @@
+# AdLoom의 도메인 스키마 패키지다. 애플리케이션 서비스는 아직 구현되지 않았다.
+# 0.0.0은 정식 배포 전 개발 버전이다.
+# 핀 근거·출처·라이선스: docs/architecture/dependencies.md
+[project]
+name = "adloom"
+version = "0.0.0"
+description = "AdLoom domain schemas and validation contracts"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi==0.162.0",
+    "httpx==0.28.1",
+    "httpx-sse==0.4.3",
+    "meta-sam-parser==0.1.0",
+    "pillow==13.0.0",
+    "pydantic==2.14.1",
+    "python-multipart==0.0.32",
+    "pyyaml==6.0.3",
+    "uvicorn==0.54.0",
+]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/adloom"]
+
+[dependency-groups]
+dev = [
+    "mypy==2.4.0",
+    "pytest==9.1.1",
+    "ruff==0.17.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["src/adloom"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
