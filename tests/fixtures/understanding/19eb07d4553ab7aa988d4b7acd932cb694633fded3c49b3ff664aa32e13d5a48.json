@@ -1,0 +1,10 @@
+{
+  "source_duration_us": 10000000,
+  "product_name": "합성 샘플",
+  "sam_prompt": "gold square",
+  "key_moments": [{"start_us": 0, "end_us": 6000000, "reason": "합성 도형의 이동 구간"}],
+  "hook_candidates": [{"id": "a", "text": "첫 문구"}, {"id": "b", "text": "둘째 문구"}, {"id": "c", "text": "셋째 문구"}],
+  "primary_text": "합성 샘플의 mock 광고입니다.",
+  "headline": "합성 샘플",
+  "cta": "LEARN_MORE"
+}

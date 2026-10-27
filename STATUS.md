@@ -21,3 +21,4 @@
 2026-10-27 · T02 · DONE(상태 전이표) · 새 테스트 실패 후 atomic snapshot/head·digest·stale commit·실행 lock·실패 재개를 구현했다. make check 138개 및 실제 저장→FAILED→CREATED 재개 smoke 통과. 승인·게시 내용 검증은 T08에서 연결한다.
 2026-10-27 · T03 · DONE(AC-06·07·09) · 누락 박스 보간·경계/이동 상한·feasible 여백·품질 표시 구현 후 make check 143개 통과. all-null 300프레임의 중앙 대체 smoke 확인. SAFE_TOP/BOTTOM은 잠정값이며 모든 피사체 포함을 보장하지 않는다.
 2026-10-27 · T04 · DONE(AC-05) · YAML 규칙표·차단 플래그·순화 제안을 구현했다. make check 144개와 순화본 재검사 smoke 통과. 최종 훅·본문·제목·자막의 승인 전 재검사는 T08에서 연결한다.
+2026-10-27 · T05 · DONE(AC-21 팩토리) · 어댑터 Protocol 5개와 mock 5종·팩토리를 구현했다. make check 147개 및 샘플 이해/추적/PNG smoke 통과. 모델 결과는 digest fixture로만 읽고 실제 추론·전사·광고로 표시하지 않는다.
