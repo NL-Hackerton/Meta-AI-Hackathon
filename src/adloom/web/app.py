@@ -12,6 +12,7 @@ from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 from starlette.middleware.base import RequestResponseEndpoint
 
@@ -114,6 +115,8 @@ def create_app(settings: Settings, allowed_hosts: tuple[str, ...] = LOOPBACK_HOS
     @app.get("/assets/noto-sans-kr.ttf")
     def font() -> FileResponse:
         return FileResponse(FONT_PATH, media_type="font/ttf")
+
+    app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
     @app.get("/api/status")
     def status() -> dict[str, object]:
