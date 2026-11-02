@@ -1,6 +1,8 @@
 # AdLoom
 
-**AdLoom turns one phone video from a small business into six Meta-ready ad videos and two PAUSED ads in the owner's account — using Meta's Muse Spark, SAM 3.1, Muse Image and Muse Voice — and publishes nothing until the owner approves exactly what they saw.**
+**AdLoom is designed to turn one phone video from a small business into six ad videos sized for Meta placements and two PAUSED ads in the owner's own ad account. It uses Meta's Muse Spark, SAM 3.1, Muse Image and Muse Voice, and it publishes nothing until the owner approves the reviewed content.**
+
+So far it runs end to end in fixture mode (mock providers, bundled sample clip). The live adapters are built and tested against mocked HTTP, but no live model call and no real ad has been made yet — see [Project status](#project-status).
 
 Built for the Meta Global AI Developer Hackathon.
 
@@ -14,28 +16,32 @@ Built for the Meta Global AI Developer Hackathon.
 
 Small local businesses have footage of their work on their phones, but turning it into video ads takes time, money and editing skill they do not have.
 
-- Only **27.2%** of Korean small businesses use any digital or smart technology (2024 national survey). — [Ministry of SMEs and Startups, 2026-03-13](https://www.mss.go.kr/site/smba/ex/bbs/View.do?cbIdx=86&bcIdx=1066231)
 - Among about 300 small businesses (mostly US/Canada), **26%** use video marketing or ads, **52%** spend under $1,000 a month on marketing, and **50%** have no marketing staff. — [LocaliQ, 2025-10-27](https://localiq.com/blog/small-business-marketing-trends-report-2026/)
-- *Meta-reported:* campaigns that included 9:16 video ads with audio and key messages in the safe zone had **34.5% lower cost per result** than image ads (meta-analysis of 15 split tests). — [Meta for Business, Reels ads](https://www.facebook.com/business/ads/facebook-instagram-reels-ads)
+- Among US small businesses that advertise on social media, Facebook and Instagram are the most popular platforms, and young, larger firms are **7×** more likely to use video ads than small, older ones. — [Intuit SMB MediaLabs, 2025](https://quickbooks.intuit.com/r/small-business-data/advertising-trends-2025/)
+- *Meta-reported (Meta's own split tests, not an AdLoom result):* campaigns that included 9:16 video ads with audio and key messages in the safe zone had **34.5% lower cost per result** than image ads (meta-analysis of 15 split tests). — [Meta for Business, Reels ads](https://www.facebook.com/business/ads/facebook-instagram-reels-ads)
 
-So the formats that work on Meta are exactly the ones small owners are least able to produce. More sources are in the [write-up](docs/submission/WRITEUP.md#inspiration).
+So the formats Meta recommends are the ones small owners are least able to produce. AdLoom aims to make them from footage the owner already has; it has not been measured against any of the figures above. More sources are in the [write-up](docs/submission/WRITEUP.md#inspiration).
+
+**Supported market today:** Korea (Korean copy and Noto Sans KR on-screen text, KRW budget, KR targeting). The Spark and Voice adapters also accept English.
 
 ## What AdLoom does
 
 1. The owner uploads one video (3–45 seconds) and types or says one sentence about the business.
-2. AdLoom picks the best moments, writes three short hooks and the ad copy, and finds the product in every frame.
-3. It renders six videos — 9:16, 4:5 and 1:1, each with hook A and hook B — with the crop following the product, subtitles, and an end card.
-4. The owner reviews everything on one screen (tracked product box over the source, crops, six videos, copy, flagged phrases with suggested rewrites, warnings) and can edit hooks, copy, scenes or the product to follow.
-5. The owner approves. AdLoom stores a SHA-256 fingerprint of what was reviewed.
+2. Muse Spark is designed to pick the best moments, write three short hooks and the ad copy, and name the product; SAM 3.1 is designed to find that product in every frame.
+3. AdLoom renders six videos — 9:16, 4:5 and 1:1, each with hook A and hook B — with the crop following the product, subtitles, and an end card.
+4. The owner reviews everything on one screen (tracked product box over the source, crops, a "Product kept whole in the frame" table comparing AdLoom's crop with a plain center crop, six videos, copy, flagged phrases with suggested rewrites, warnings) and can edit hooks, copy, scenes or the product to follow.
+5. The owner approves. AdLoom stores a SHA-256 fingerprint of the reviewed content (videos, thumbnails, copy and publish settings); publishing stops if any of it has changed since.
 6. AdLoom creates a campaign, an ad set and two 9:16 ads (hook A and B) in the owner's Meta ad account, all **PAUSED**. The owner switches them on in Ads Manager.
 
 Screens in the web app: Home, Welcome and business profile, Meta connection status, New ad, description confirmation, Review & approve, Edit, publish progress, Approve queue, My ads, notifications, publish log, data deletion and settings. The designs are in the [Figma file](https://www.figma.com/design/9T5bAydiWPfdhFWNpoiZK5). UI text is in English.
 
 ## How it uses Meta AI
 
-| Model | Job in AdLoom |
+All model calls below are implemented and tested against mocked HTTP responses only. The model IDs come from Meta's developer documentation ([api notes](docs/api_notes/verification.md)) and have not yet been confirmed against the live API.
+
+| Model | Job it is designed to do in AdLoom |
 | --- | --- |
-| Muse Spark `muse-spark-1.3` | Watches the video and reads the note; returns key moments, 3 hooks, copy, CTA, a product phrase for SAM, and classified claims as strict JSON. |
+| Muse Spark `muse-spark-1.3` | Takes the video and the note; returns key moments, 3 hooks, copy, CTA, a product phrase for SAM, and classified claims as strict JSON. |
 | SAM 3.1 `sam-3.1` | Tracks that product through the video so the 9:16, 4:5 and 1:1 crops follow it. |
 | Muse Image `muse-image-1.0` | Text-free background images for thumbnails and end cards. Still images only. |
 | Muse Voice `muse-voice-transcribe-1.0` | Transcribes a spoken description (owner confirms it) and the video's audio for subtitles. |
@@ -49,13 +55,14 @@ One Python package (`src/adloom/`) with one shared pipeline used by a CLI and a 
 
 ## Safety and trust
 
-- **Approval required.** Publishing re-checks that the approval file is intact and that the SHA-256 of the current content matches the approved fingerprint. Any edit creates a new revision and cancels the approval.
+- **Approval required.** Publishing re-checks that the approval file is intact and that the SHA-256 of the current content matches the approved fingerprint. Any edit creates a new revision and cancels the approval. The fingerprint covers the stored files and fields the review screen shows; it cannot prove what the owner actually looked at.
 - **PAUSED only.** Campaigns, ad sets and ads are always created with `status: PAUSED`; both publishers refuse anything else before sending. AdLoom never turns an ad on.
 - **No generated video.** Every video frame comes from the owner's own footage. Muse Image is used only for still thumbnails and end cards, and all on-screen words are drawn by AdLoom.
 - **Standard models only.** Only the four Standard model IDs above are accepted; `-contributor` IDs are refused in code.
 - **No silent retries on publish.** Every Marketing API request is journaled. If the outcome of a request is unknown, AdLoom does not send it again; the owner decides.
-- **Data handling.** Uploaded videos are stored only in the local `data/` folder and sent only to Meta's APIs. Files uploaded to the Model API are deleted after use. HTTP clients use fixed Meta base URLs, ignore proxy settings and do not follow redirects. Keys and tokens are read only from environment variables. The web app listens on `127.0.0.1` and has no login, so it must not be exposed to a network.
-- **Limits we state openly.** The policy check is a small phrase rule table, not a guarantee of passing Meta's ad review. Evidence links show where a claim came from; they do not prove it is true.
+- **Data handling.** Uploaded videos are stored only in the local `data/` folder and, in live mode, sent only to Meta's APIs. Files uploaded to the Model API are designed to be deleted after the stage that used them (wired and tested with mocked HTTP, not yet run live). HTTP clients use fixed Meta base URLs, ignore proxy settings and do not follow redirects. Keys and tokens are read only from environment variables. The web app listens on `127.0.0.1` and has no login, so it must not be exposed to a network.
+- **Policy pre-check, not a review.** Copy and subtitles are checked locally against a rule table (`src/adloom/policy_rules.yaml`) that stores a suggested rewrite for each flagged phrase; a blocking flag locks approval. The table is being expanded into rules grounded in [Meta's Advertising Standards](https://transparency.meta.com/policies/ad-standards). It does not predict or guarantee the outcome of Meta's ad review.
+- **Claims are checked for structure, not truth.** Spark classifies each factual claim as `explicit` (in the note), `observation` (visible in the video) or `inference`, with evidence. AdLoom checks only that the evidence is well formed — a quote that exists in the note, a time span inside this video. A claim-review step, where the owner confirms each factual claim next to its evidence, is being added; until it lands, any job with claims is held back from approval.
 
 The eight safety invariants (INV-1 to INV-8), where each is enforced, and which tests cover it: [ARCHITECTURE.md](docs/submission/ARCHITECTURE.md#safety-invariants).
 
@@ -89,11 +96,11 @@ Rendered videos are written to `data/jobs/JOB_ID/renders/r000001/`. `ADLOOM_DATA
 ## Project status
 
 - **Working now (fixture mode):** the full path — upload, understand, track, crop, enrich, render six videos, review, edit, approve, publish two PAUSED ads — from both the CLI and the web app, using mock providers and fixture data. Publish IDs starting with `fixture-` are not Meta IDs.
-- **Verified:** latest `make check` — **247 passed** (ruff, mypy strict, pytest). Two renders of the same job produced identical frame hashes on the same ffmpeg build, and a partial publish followed by resume produced 9 requests and 2 ads with no duplicates in the mock publisher (both recorded in [STATUS.md](STATUS.md)).
-- **Implemented but gated:** live adapters for Muse Spark, SAM 3.1, Muse Image, Muse Voice and the Marketing API, tested against mocked HTTP responses. Live mode stays off until the Model API key and the ad account are available; `ADLOOM_LIVE=1` is currently refused rather than silently falling back to mocks.
+- **Verified (2026-11-02):** `make check` (ruff, mypy strict, pytest) — **356 passed**. This is the only place the test count is recorded; other documents link here. Earlier checks, also in [STATUS.md](STATUS.md): two renders of the same job produced identical frame hashes on the same ffmpeg build (synthetic sample clip only), and a partial publish followed by resume produced 9 requests and 2 ads with no duplicates in the mock publisher.
+- **Implemented but gated:** live adapters for Muse Spark, SAM 3.1, Muse Image, Muse Voice and the Marketing API, tested against mocked HTTP responses only. Live mode stays off until the Model API key and the ad account are available; `ADLOOM_LIVE=1` is currently refused rather than silently falling back to mocks.
 - **No live model call and no real ad has been made yet.** Live results: [fill after live run: date, models called, demo video SAM coverage, ad IDs of the 2 PAUSED ads from Ads Manager].
-- **Not built yet:** a claim-review screen (jobs where Spark reports factual claims are held back from approval until it exists), and a read-only lookup for publish requests with an unknown outcome.
-- **Current market setup:** ad copy, end-card CTA text and targeting are set up for Korea (Korean text, KRW budget, KR targeting).
+- **Being added:** the claim-review step described above; a fixture fault-injection flag, `ADLOOM_FIXTURE_FAULT=publish_unknown_once`, that makes the mock publisher lose the reply to the ad-set request once per process, so the journal records `UNKNOWN` and the web app shows "Publish result unknown" and **Stop attempt** without touching a real account.
+- **Not built yet:** a read-only lookup on Meta for publish requests with an unknown outcome (the live publisher has a `read()` method for it, but nothing calls it yet).
 
 ## Team and license
 
