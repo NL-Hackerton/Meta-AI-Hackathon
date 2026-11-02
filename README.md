@@ -7,7 +7,8 @@
 - 고객 검증 불가 조건에 맞춰 제품 완성도 중심으로 BMAD 기획을 보완했다. 고객 인터뷰·실고객 확보·매출/CTR 개선은 gate가 아니다.
 - T00~T09의 mock 경로를 구현했다. CLI에서 입력 정규화→fixture 이해→합성 추적→보강→6종 영상 렌더→사람 승인→PAUSED mock 게시까지 실행할 수 있다. `make check`는 ruff·mypy strict·pytest를 실행한다.
 - 루트 [SPEC.md](SPEC.md)는 보존했다. 팀원 [기획안](https://github.com/NL-Hackerton/Meta-AI-Hackathon/blob/bf82ac60e31a740f7b2bce9dd21796c17229672d/docs/plan/기획안-SMB-광고영상-자동화-초안.md) 반영 요청에 따라 기존 스키마를 재사용해 구현했다.
-- 웹 화면·웹 서버·별도 worker·live 어댑터는 아직 없다. T10~T13은 H2/H3, T14는 선행 Figma 설계·검수 연동 부재로 BLOCKED다. `ADLOOM_LIVE=1`은 `E_API_AUTH`로 거부하며 조용히 mock으로 전환하지 않는다. 실제 모델 추론이나 광고 생성 완료를 뜻하지 않는다.
+- 로컬 웹 화면(FastAPI + 단일 HTML)을 구현했다. 작업 목록, 영상 업로드, 6종 검토·승인, 문구 편집, PAUSED mock 게시, 게시 기록, 설정 화면을 제공하며 디자인 원본은 [Figma 파일](https://www.figma.com/design/9T5bAydiWPfdhFWNpoiZK5)이다. 화면 문구는 영어다.
+- Spark·SAM·Image·Voice live 어댑터 코드는 있으나 `get_adapters`는 mock만 반환한다. T10~T13은 H2/H3 대기로 BLOCKED다. `ADLOOM_LIVE=1`은 `E_API_AUTH`로 거부하며 조용히 mock으로 전환하지 않는다. 실제 모델 추론이나 광고 생성 완료를 뜻하지 않는다.
 
 ## 코드베이스 아키텍처와 확보한 코드
 
@@ -49,6 +50,14 @@ uv run --locked python -m adloom resume JOB_ID
 
 안전 영역(위 14%·아래 22%), 문구 한도, 30초 영상 상한은 제품 잠정값이다. 정책 점검은 현재 규칙표의 표현만 탐지하며, 사실성이나 Meta 심사 통과를 보장하지 않는다. 예산·목표·CTA의 fixture 설정을 실제 계정 설정으로 사용하지 않는다.
 
+## 웹 실행
+
+```sh
+uv run --locked python -m adloom.web
+```
+
+`http://127.0.0.1:8000`에서 연다. `ADLOOM_HOST`·`ADLOOM_PORT`로 주소를 바꾸고 `ADLOOM_DATA_DIR`로 작업 저장 위치를 지정한다. 기본 주소는 loopback이며 인증이 없으므로 외부에 공개하지 않는다. 웹 경로도 CLI와 같은 `pipeline` 명령을 사용한다. 승인 기록은 `channel: "web"`으로 남고, 승인 fingerprint가 현재 내용과 다르면 `E_REVISION_CONFLICT`로 거부한다. 업로드 원본은 작업 폴더로 복사한 직후 임시 파일을 지운다. mock 이해 fixture가 SHA-256에 묶여 있으므로 지금은 `tests/fixtures/sample.mp4`만 끝까지 처리된다.
+
 ## 읽는 순서
 
 1. [BMAD kernel](_bmad-output/specs/spec-adloom/SPEC.md): 기존 8개 capability를 유지하고 원본 연결·제한 편집 CAP-9를 추가했다.
@@ -72,9 +81,9 @@ uv run _bmad/scripts/resolve_config.py --project-root .
 
 명세 갱신은 memlog와 근거를 통해 기록하고 루트 SPEC 변경은 별도 승인 절차를 유지한다. 현재 검증은 스키마와 mock pipeline·승인·편집·부분 게시 재개를 포함하며, 실제 API·광고 계정·제품 UI 검증과는 구분한다.
 
-## live·웹 구현 전 결정
+## live 연동 전 결정
 
-- 원본 명세와 SC-001~SC-017의 차이 정리, H2/H3 승인, 웹 설계·검수 연동 준비.
+- 원본 명세와 SC-001~SC-017의 차이 정리, H2/H3 승인.
 - 직접 촬영 또는 적법한 실물 자산, 광고 목적·destination. 고객 영상이나 고객 모집은 요구하지 않는다.
 - H1 공식 규정, H2 모델 접근·데이터 동의·비용 한도, H3 실제 광고 계정·권한·목표, H4 촬영·제출.
 

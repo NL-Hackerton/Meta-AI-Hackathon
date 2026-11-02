@@ -190,11 +190,15 @@ def inspect_job(settings: Settings, job_id: str) -> dict[str, object]:
 
 
 def approve_job(
-    settings: Settings, job_id: str, actor: str, digest: str | None = None
+    settings: Settings,
+    job_id: str,
+    actor: str,
+    digest: str | None = None,
+    channel: Literal["cli", "web"] = "cli",
 ) -> JobManifest:
     store = JobStore(settings.data_dir)
     with store.execution_lock():
-        return approve(store, store.load(job_id), actor, expected_digest=digest)
+        return approve(store, store.load(job_id), actor, channel=channel, expected_digest=digest)
 
 
 def publish_job(settings: Settings, job_id: str) -> JobManifest:

@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AdLoom</title>
+<style>
+@font-face { font-family: "Noto Sans KR"; src: url("/assets/noto-sans-kr.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+:root {
+  --canvas: #F3F4F7; --surface: #FFFFFF; --subtle: #F7F8FA; --field: #F6F7F9; --inverse: #17191E;
+  --text: #17191E; --text-2: #4A4F5A; --text-3: #8A909C; --muted: #B4B9C3; --border: #ECEEF2;
+  --coral: #FF6A3D; --coral-deep: #E8501F; --pink: #FF4F7B; --violet: #7B61FF;
+  --peach: #FFF1EA; --pink-soft: #FFEEF2; --violet-soft: #F2EFFF; --mint-soft: #E9F8F1; --yellow-soft: #FFF8DF;
+  --success: #17A866; --warning: #E59A00; --danger: #E5294F;
+  --r-sm: 12px; --r-md: 16px; --r-lg: 22px; --pill: 999px;
+  --shadow: 0 1px 2px rgba(23,25,30,.04), 0 8px 24px rgba(23,25,30,.06);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--canvas); color: var(--text); font-family: "Noto Sans KR", system-ui, sans-serif; font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+button, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid color-mix(in srgb, var(--violet) 55%, transparent); outline-offset: 2px; }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 24px 32px 64px; }
+nav.top { display: flex; align-items: center; gap: 8px; padding-bottom: 28px; }
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 900; font-size: 20px; letter-spacing: -.02em; text-decoration: none; margin-right: 18px; }
+.logo i { width: 32px; height: 32px; border-radius: 10px; background: linear-gradient(135deg, var(--coral), var(--pink)); display: grid; place-items: center; }
+.logo i::after { content: ""; width: 12px; height: 12px; border: 2.5px solid #fff; border-radius: 4px; }
+.logo em { color: var(--coral); font-style: normal; }
+nav.top a.tab { padding: 6px 14px; border-radius: var(--pill); font-weight: 700; font-size: 13px; color: var(--text-3); text-decoration: none; }
+nav.top a.tab[aria-current="page"] { background: var(--inverse); color: #fff; }
+.mode { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--warning); background: var(--yellow-soft); padding: 4px 10px; border-radius: var(--pill); white-space: nowrap; }
+.mode::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--warning); margin-right: 6px; vertical-align: middle; }
+.crumb { color: var(--text-3); font-size: 12px; font-weight: 700; }
+.head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 20px; }
+.head > div { flex: 1; }
+h1 { font-size: 30px; font-weight: 900; letter-spacing: -.03em; margin: 2px 0 4px; }
+h2 { font-size: 16px; font-weight: 800; margin: 0 0 12px; }
+.sub { color: var(--text-3); margin: 0; max-width: 70ch; }
+.card { background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 20px 22px; }
+.stack { display: grid; gap: 16px; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+.metric b { display: block; font-size: 28px; font-weight: 900; letter-spacing: -.02em; }
+.metric small, .hint { color: var(--text-3); font-size: 12px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: var(--r-sm); padding: 11px 18px; font-weight: 800; cursor: pointer; text-decoration: none; background: var(--inverse); color: #fff; }
+.btn.coral { background: var(--coral); box-shadow: 0 8px 20px rgba(255,106,61,.28); }
+.btn.light { background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
+.btn.small { padding: 6px 14px; font-size: 13px; }
+.btn.wide { width: 100%; }
+.btn:disabled { background: var(--border); color: var(--muted); box-shadow: none; cursor: not-allowed; }
+.btn:disabled .spinner { border-color: rgba(23,25,30,.15); border-top-color: var(--text-3); }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+.badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.b-done { color: var(--success); background: var(--mint-soft); }
+.b-progress { color: var(--violet); background: var(--violet-soft); }
+.b-warn { color: var(--warning); background: var(--yellow-soft); }
+.b-danger { color: var(--danger); background: var(--pink-soft); }
+.b-paused { color: var(--text-2); background: var(--subtle); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 12px; font-weight: 700; color: var(--text-3); padding: 8px 10px; border-bottom: 1px solid var(--border); }
+td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 13px; vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+.thumb { width: 36px; height: 48px; border-radius: 8px; object-fit: cover; background: #1E4A40; display: block; }
+.mono { font-variant-numeric: tabular-nums; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.chip { border: 1px solid var(--border); background: var(--surface); border-radius: var(--pill); padding: 5px 14px; font-weight: 700; font-size: 12px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--inverse); border-color: var(--inverse); color: #fff; }
+.kv { display: grid; grid-template-columns: 110px 1fr; }
+.kv > * { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.kv > dt { color: var(--text-3); font-weight: 700; }
+.kv > dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.kv > :nth-last-child(-n+2) { border-bottom: 0; }
+label.field { display: grid; gap: 6px; font-size: 12px; font-weight: 700; color: var(--text-2); }
+.input { width: 100%; border: 1px solid var(--border); background: var(--field); border-radius: var(--r-md); padding: 12px 14px; font-weight: 700; font-size: 14px; }
+textarea.input { resize: vertical; min-height: 88px; line-height: 1.5; }
+.counter { justify-self: end; color: var(--text-3); font-weight: 700; }
+.counter.over { color: var(--danger); }
+.row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.drop { border: 2px dashed color-mix(in srgb, var(--coral) 60%, transparent); background: var(--peach); border-radius: var(--r-md); padding: 36px 20px; display: grid; justify-items: center; gap: 8px; text-align: center; cursor: pointer; }
+.drop.over { background: #FFE6DA; }
+.drop strong { font-size: 16px; }
+.uplogo { width: 52px; height: 52px; border-radius: 16px; background: #fff; display: grid; place-items: center; box-shadow: var(--shadow); }
+.uplogo::after { content: ""; width: 18px; height: 18px; border-top: 4px solid var(--coral); border-left: 4px solid var(--coral); transform: translateY(4px) rotate(45deg); }
+.steps { display: grid; gap: 14px; list-style: none; padding: 0; margin: 0; }
+.steps li { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: start; }
+.steps li > i { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-weight: 800; font-size: 12px; background: var(--subtle); color: var(--text-3); }
+.steps li.done > i { background: var(--success); color: #fff; }
+.steps li.active > i { background: var(--violet); color: #fff; }
+.steps li.failed > i { background: var(--danger); color: #fff; }
+.steps b { display: block; font-size: 14px; }
+.steps li:not(.done):not(.active):not(.failed) b { color: var(--text-3); }
+.steps small { color: var(--text-3); font-size: 12px; }
+.note { border-radius: var(--r-lg); padding: 14px 18px; font-size: 13px; font-weight: 700; }
+.note.mint { background: var(--mint-soft); color: #126B45; }
+.note.pink { background: var(--pink-soft); color: var(--danger); }
+.note.yellow { background: var(--yellow-soft); color: #8A5D00; }
+.note.violet { background: var(--violet-soft); color: #4B36C7; }
+.note p { margin: 4px 0 0; color: var(--text-2); font-weight: 500; }
+.variants { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 14px; align-items: end; }
+.variant { display: grid; gap: 6px; }
+.variant video { height: 240px; width: auto; max-width: 100%; border-radius: var(--r-sm); background: #10261F; display: block; }
+.variant .meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 8px; font-size: 12px; font-weight: 700; }
+.variant .meta span:last-child { color: var(--text-3); }
+.copy dl { margin: 0; }
+.flag { display: grid; gap: 2px; padding: 10px 0; border-top: 1px solid rgba(229,41,79,.15); }
+.flag s { color: var(--text-3); }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; font-weight: 700; cursor: pointer; }
+.check input { width: 18px; height: 18px; accent-color: var(--violet); margin-top: 1px; }
+.empty { text-align: center; padding: 48px 20px; display: grid; gap: 10px; justify-items: center; }
+.empty b { font-size: 18px; }
+.spinner { width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid rgba(255,255,255,.4); border-top-color: #fff; animation: spin .8s linear infinite; }
+.steps .spinner { border-color: rgba(123,97,255,.25); border-top-color: var(--violet); }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--inverse); color: #fff; padding: 12px 18px; border-radius: var(--r-md); font-weight: 700; box-shadow: var(--shadow); z-index: 10; }
+.toast.error { background: var(--danger); }
+footer { margin-top: 24px; color: var(--text-3); font-size: 12px; }
+@media (max-width: 960px) {
+  .wrap { padding: 16px 16px 48px; }
+  .grid2 { grid-template-columns: 1fr; }
+  .metrics { grid-template-columns: repeat(2, 1fr); }
+  .row3 { grid-template-columns: 1fr; }
+  nav.top { flex-wrap: wrap; row-gap: 12px; padding-bottom: 20px; }
+  .logo { margin-right: 0; }
+  .mode { order: 1; }
+  nav.top a.tab { order: 2; }
+  .hide-sm { display: none; }
+  .head { flex-direction: column; align-items: stretch; }
+  .variants { grid-template-columns: repeat(2, 1fr); }
+  h1 { font-size: 26px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="top" aria-label="Main">
+    <a class="logo" href="#/">
+      <i aria-hidden="true"></i><span>Ad<em>Loom</em></span>
+    </a>
+    <a class="tab" href="#/" data-nav="jobs">Jobs</a>
+    <a class="tab" href="#/new" data-nav="new">New job</a>
+    <a class="tab" href="#/log" data-nav="log">Publish log</a>
+    <a class="tab" href="#/settings" data-nav="settings">Settings</a>
+    <span class="mode" id="mode">fixture mode · no live calls</span>
+  </nav>
+  <main id="app" aria-live="polite"></main>
+  <footer>All IDs here are fixture IDs. Live model and ad calls stay off until the Meta account, permissions and spend limit are approved.</footer>
+</div>
+<script>
+"use strict";
+const app = document.getElementById("app");
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const won = (n) => "₩" + Number(n).toLocaleString("en-US");
+const short = (h) => h ? `${h.slice(0, 4)}…${h.slice(-4)}` : "—";
+const when = (iso) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const MAKING = ["CREATED", "UNDERSTOOD", "TRACKED", "ENRICHED", "RENDERED"];
+const STATE = {
+  AWAITING_APPROVAL: ["Ready to approve", "b-done"],
+  APPROVED: ["Approved", "b-progress"],
+  PUBLISHED_PAUSED: ["Paused on Meta", "b-paused"],
+  FAILED: ["Failed", "b-danger"],
+};
+const stateBadge = (s) => { const [label, cls] = STATE[s] || ["Making", "b-progress"]; return `<span class="badge ${cls}">${label}</span>`; };
+const PHASE = { CONFIRMED: ["Confirmed", "b-done"], PREPARED: ["Unknown", "b-danger"], UNKNOWN: ["Unknown", "b-danger"], FAILED: ["Failed · not sent", "b-warn"] };
+const RESOURCE = { campaign: "Campaign", adset: "Ad set", image: "Thumbnail", video: "Video", creative: "Creative", ad: "Ad" };
+const resourceName = (op) => RESOURCE[op.resource_kind] + (op.hook_id ? ` · Hook ${op.hook_id.toUpperCase()}` : "");
+
+async function api(path, options = {}) {
+  const headers = { ...(options.headers || {}), "X-AdLoom-Request": "1" };
+  const response = await fetch(path, { ...options, headers });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(body.error?.detail || `Request failed (${response.status})`);
+    error.code = body.error?.code;
+    throw error;
+  }
+  return body;
+}
+function toast(message, error = false) {
+  document.querySelectorAll(".toast").forEach((old) => old.remove());
+  const el = document.createElement("div");
+  el.className = "toast" + (error ? " error" : "");
+  el.setAttribute("role", "status");
+  el.textContent = message;
+  document.body.append(el);
+  setTimeout(() => el.remove(), 4200);
+}
+function errorText(err) { return err.code ? `${err.code} · ${err.message}` : err.message; }
+function setNav(key) {
+  document.querySelectorAll("[data-nav]").forEach((a) => a.dataset.nav === key ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
+}
+function head(crumb, title, sub, action = "") {
+  return `<div class="head"><div><div class="crumb">${crumb}</div><h1>${title}</h1><p class="sub">${sub}</p></div>${action}</div>`;
+}
+
+/* Jobs */
+let jobFilter = "all";
+async function viewJobs() {
+  setNav("jobs");
+  const jobs = await api("/api/jobs");
+  const count = (fn) => jobs.filter(fn).length;
+  const groups = {
+    all: () => true,
+    approve: (j) => j.state === "AWAITING_APPROVAL" || j.state === "APPROVED",
+    making: (j) => MAKING.includes(j.state),
+    paused: (j) => j.state === "PUBLISHED_PAUSED",
+    failed: (j) => j.state === "FAILED",
+  };
+  const rows = jobs.filter(groups[jobFilter]).map((j) => {
+    const action = j.state === "AWAITING_APPROVAL" ? `<a class="btn small" href="#/jobs/${j.job_id}">Review</a>`
+      : j.state === "FAILED" ? `<button class="btn light small" data-resume="${j.job_id}">Resume</button>`
+      : `<a class="btn light small" href="#/jobs/${j.job_id}">Open</a>`;
+    const notes = j.error ? `${esc(j.error.code)} · ${esc(j.error.stage)}` : j.state === "PUBLISHED_PAUSED" ? `2 ads · ${won(j.daily_budget_krw)}/day` : esc(j.headline || "");
+    const thumb = j.thumbnail_url ? `<img class="thumb" src="${esc(j.thumbnail_url)}" alt="">` : `<span class="thumb"></span>`;
+    return `<tr><td>${thumb}</td><td>${esc(j.product_name || "Untitled video")}<div class="hint">job ${esc(j.job_id.slice(0, 6))}</div></td>
+      <td class="hide-sm">${when(j.created_at)}</td><td class="hide-sm">r${j.revision}</td><td>${stateBadge(j.state)}</td>
+      <td class="hide-sm">${notes}</td><td>${action}</td></tr>`;
+  }).join("");
+  const chip = (key, label) => `<button class="chip" data-filter="${key}" aria-pressed="${jobFilter === key}">${label}</button>`;
+  app.innerHTML = head(`${jobs.length} job${jobs.length === 1 ? "" : "s"} on this machine`, "Jobs",
+      "Every video you uploaded and where it stands. Nothing goes live without an approval.",
+      `<a class="btn coral" href="#/new">New job</a>`) +
+    `<div class="metrics">
+      <div class="card metric"><span class="hint">To approve</span><b style="color:var(--coral)">${count(groups.approve)}</b></div>
+      <div class="card metric"><span class="hint">Making</span><b style="color:var(--violet)">${count(groups.making)}</b></div>
+      <div class="card metric"><span class="hint">Paused on Meta</span><b>${count(groups.paused) * 2} ads</b><small>${count(groups.paused)} campaign${count(groups.paused) === 1 ? "" : "s"} · fixture</small></div>
+      <div class="card metric"><span class="hint">Needs attention</span><b style="color:var(--danger)">${count(groups.failed)}</b></div>
+    </div>` +
+    (jobs.length === 0
+      ? `<div class="card empty"><b>No videos yet</b><span class="hint">Upload one 3–45 second phone video to get six ad cuts.</span><a class="btn coral" href="#/new">New job</a></div>`
+      : `<div class="card"><div class="chips">${chip("all", "All")}${chip("approve", "To approve")}${chip("making", "Making")}${chip("paused", "Paused")}${chip("failed", "Failed")}</div>
+        <table><thead><tr><th></th><th>Video</th><th class="hide-sm">Created</th><th class="hide-sm">Revision</th><th>Status</th><th class="hide-sm">Notes</th><th>Action</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="7" class="hint">No jobs in this view.</td></tr>`}</tbody></table></div>`);
+  app.querySelectorAll("[data-filter]").forEach((b) => b.onclick = () => { jobFilter = b.dataset.filter; viewJobs(); });
+  app.querySelectorAll("[data-resume]").forEach((b) => b.onclick = () => resume(b.dataset.resume, b));
+}
+async function resume(jobId, button) {
+  button.disabled = true;
+  button.innerHTML = `<span class="spinner"></span> Resuming`;
+  try { await api(`/api/jobs/${jobId}/resume`, { method: "POST" }); location.hash = `#/jobs/${jobId}`; }
+  catch (err) { toast(errorText(err), true); button.disabled = false; button.textContent = "Resume"; }
+}
+
+/* New job */
+const STEPS = [
+  ["Understand", "Muse Spark finds the product, key scenes and 3 hooks"],
+  ["Track", "SAM 3.1 follows the product for each ratio"],
+  ["Images & captions", "Thumbnails, end cards and spoken captions"],
+  ["Assemble", "6 videos: 9:16, 4:5, 1:1 × hook A and B"],
+  ["You approve", "Then 2 paused ads are created on Meta"],
+];
+function stepList(activeIndex, failed = false) {
+  return `<ol class="steps">${STEPS.map(([t, d], i) => {
+    const cls = i < activeIndex ? "done" : i === activeIndex ? (failed ? "failed" : "active") : "";
+    const mark = i < activeIndex ? "✓" : i + 1;
+    const tail = i === activeIndex && !failed && i < 4 ? `<span class="spinner" aria-label="In progress"></span>` : "";
+    return `<li class="${cls}"><i>${mark}</i><div><b>${t}</b><small>${d}</small></div>${tail}</li>`;
+  }).join("")}</ol>`;
+}
+function viewNew() {
+  setNav("new");
+  app.innerHTML = head(`<a href="#/">Jobs</a> / New`, "New job", "Drop one 3–45 second video. We recut it into 9:16, 4:5 and 1:1 with two hooks each.") +
+  `<form class="grid2" id="form" novalidate>
+    <div class="stack">
+      <div class="card"><h2>Video</h2>
+        <label class="drop" id="drop" tabindex="0">
+          <span class="uplogo" aria-hidden="true"></span>
+          <strong id="dropTitle">Drag a video here</strong>
+          <span class="hint" id="dropHint">MP4 or MOV · 3–45 s · up to 256 MB</span>
+          <span class="btn light small">Choose file</span>
+          <input type="file" id="video" name="video" accept="video/mp4,video/quicktime,.mp4,.mov" hidden>
+        </label>
+      </div>
+      <div class="card stack"><h2 style="margin:0">About this ad</h2>
+        <label class="field">One-line description
+          <textarea class="input" name="note" id="note" maxlength="200" required placeholder="What you sell, where, and what makes it worth a call"></textarea>
+          <span class="counter" id="noteCount">0 / 200</span>
+        </label>
+        <div class="row3">
+          <label class="field">Area<input class="input" name="region" required placeholder="Namyangju"></label>
+          <label class="field">Daily budget (KRW)<input class="input mono" name="budget" type="number" min="1000" step="1000" value="10000" required></label>
+          <label class="field">Landing URL<input class="input" name="destination" type="url" placeholder="https://"></label>
+        </div>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="card" id="progress"><h2>What happens next</h2>${stepList(-1)}</div>
+      <div class="note mint">Fixture mode: the video stays on this machine and no model is called. With live mode, it goes to the Meta Model API in Standard mode only.</div>
+      <button class="btn coral wide" id="submit" type="submit">Make 6 ads</button>
+      <div id="formError"></div>
+    </div>
+  </form>`;
+  const input = document.getElementById("video"), drop = document.getElementById("drop");
+  const note = document.getElementById("note");
+  note.oninput = () => { document.getElementById("noteCount").textContent = `${note.value.length} / 200`; };
+  const pick = (file) => {
+    if (!file) return;
+    const dt = new DataTransfer(); dt.items.add(file); input.files = dt.files;
+    document.getElementById("dropTitle").textContent = file.name;
+    document.getElementById("dropHint").textContent = `${(file.size / 1048576).toFixed(1)} MB · ready`;
+  };
+  input.onchange = () => pick(input.files[0]);
+  drop.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } };
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+  drop.ondragleave = () => drop.classList.remove("over");
+  drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); pick(e.dataTransfer.files[0]); };
+  document.getElementById("form").onsubmit = submitJob;
+}
+async function submitJob(event) {
+  event.preventDefault();
+  const form = event.target, errorBox = document.getElementById("formError");
+  errorBox.innerHTML = "";
+  if (!form.video.files.length) { errorBox.innerHTML = `<div class="note pink">Choose a video first.</div>`; return; }
+  if (!form.reportValidity()) return;
+  const button = document.getElementById("submit");
+  button.disabled = true;
+  button.innerHTML = `<span class="spinner"></span> Making 6 ads`;
+  const data = new FormData(form);
+  if (!data.get("destination")) data.delete("destination");
+  const started = Date.now();
+  const progress = document.getElementById("progress");
+  progress.innerHTML = `<h2>Making your ads</h2>${stepList(0)}`;
+  const timer = setInterval(async () => {
+    try {
+      const jobs = await api("/api/jobs");
+      const job = jobs.find((j) => Date.parse(j.created_at) >= started - 2000);
+      if (job && MAKING.includes(job.state)) progress.innerHTML = `<h2>Making your ads</h2>${stepList(Math.min(MAKING.indexOf(job.state), 3))}`;
+    } catch (_) { /* polling is best effort */ }
+  }, 1000);
+  try {
+    const job = await api("/api/jobs", { method: "POST", body: data });
+    clearInterval(timer);
+    toast("Six videos are ready to review");
+    location.hash = `#/jobs/${job.job_id}`;
+  } catch (err) {
+    clearInterval(timer);
+    const jobs = await api("/api/jobs").catch(() => []);
+    const failed = jobs.find((j) => Date.parse(j.created_at) >= started - 2000);
+    const at = failed && failed.failed_stage ? ["understand", "track", "enrich", "assemble"].indexOf(failed.failed_stage) : 0;
+    progress.innerHTML = `<h2>Making stopped</h2>${stepList(Math.max(at, 0), true)}`;
+    errorBox.innerHTML = `<div class="note pink">${esc(errorText(err))}<p>${failed ? `Finished steps are saved. <a href="#/jobs/${failed.job_id}">Open the job</a> to resume from the failed step.` : "Nothing was saved. Fix the input and try again."}</p></div>`;
+    button.disabled = false;
+    button.textContent = "Make 6 ads";
+  }
+}
+
+/* Review & approve */
+async function viewJob(jobId) {
+  setNav("jobs");
+  const d = await api(`/api/jobs/${jobId}`);
+  const job = d.job, snap = d.snapshot, u = snap.understanding, plan = snap.publish_plan;
+  const hooks = snap.render_plan ? snap.render_plan.hooks : (u ? u.hook_candidates.slice(0, 2) : []);
+  const hookText = Object.fromEntries(hooks.map((h) => [h.id, h.text]));
+  const order = ["9:16", "4:5", "1:1"];
+  const variants = [...d.variants].sort((a, b) => a.hook_id.localeCompare(b.hook_id) || order.indexOf(a.aspect) - order.indexOf(b.aspect));
+  const tiles = variants.map((v) => `<figure class="variant" style="margin:0">
+      <video src="${esc(v.url)}" controls muted playsinline preload="metadata"></video>
+      <figcaption class="meta"><span>${esc(v.aspect)} · Hook ${esc(v.hook_id.toUpperCase())}</span><span class="mono">${v.width}×${v.height} · ${(v.duration_us / 1e6).toFixed(1)} s</span></figcaption>
+      <span class="hint">${esc(hookText[v.hook_id] || "")} · <span class="mono">${short(v.frame_hash)}</span></span></figure>`).join("");
+
+  const warnings = [];
+  for (const f of d.policy_flags || []) warnings.push(`<div class="flag"><span class="badge ${f.severity === "block" ? "b-danger" : "b-warn"}" style="justify-self:start">${f.severity === "block" ? "Blocks approval" : "Rewritten"}</span><s>${esc(f.original)}</s><span style="color:var(--text)">→ ${esc(f.rewrite)}</span></div>`);
+  if (d.degraded) warnings.push(`<div class="flag"><span class="badge b-warn" style="justify-self:start">Center-crop fallback</span><span style="color:var(--text-2)">The product was not tracked well enough in one ratio. Check that it stays in frame.</span></div>`);
+  if (d.clipped) warnings.push(`<div class="flag"><span class="badge b-warn" style="justify-self:start">Edge frames</span><span style="color:var(--text-2)">The product touches the frame edge in some frames.</span></div>`);
+  for (const issue of (d.approval_issues || []).filter((i) => i !== "policy_block")) warnings.push(`<div class="flag"><span class="badge b-danger" style="justify-self:start">${esc(issue.replaceAll("_", " "))}</span><span style="color:var(--text-2)">Resolve this before approving.</span></div>`);
+  if (d.approval_error) warnings.push(`<div class="flag"><span class="badge b-danger" style="justify-self:start">${esc(d.approval_error.code)}</span><span style="color:var(--text-2)">${esc(d.approval_error.detail)}</span></div>`);
+  const blocked = (d.approval_issues || []).length > 0 || !!d.approval_error;
+
+  let panel;
+  if (job.state === "AWAITING_APPROVAL") {
+    panel = `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Ready to approve</h2>${warnings.length ? `<span class="badge ${blocked ? "b-danger" : "b-warn"}">${warnings.length} to check</span>` : `<span class="badge b-done">No issues</span>`}</div>
+      <dl class="kv">
+        <dt>Publishes</dt><dd>2 × 9:16 ads (Hook A, B)</dd>
+        <dt>Status</dt><dd style="color:var(--coral-deep)">Campaign, ad set, ads · PAUSED</dd>
+        <dt>Budget</dt><dd>${won(snap.brief.daily_budget_krw)} / day · ${esc(snap.brief.region)}</dd>
+        <dt>Landing</dt><dd>${esc(snap.brief.destination_url || "Page only")}</dd>
+        <dt>Fingerprint</dt><dd class="mono">sha256 ${short(d.content_digest)}</dd>
+      </dl>
+      <form id="approve" class="stack" style="gap:12px;margin-top:8px">
+        <label class="field">Approved by<input class="input" name="actor" required maxlength="80" autocomplete="name" placeholder="Your name"></label>
+        <label class="check"><input type="checkbox" name="seen" required>I watched all six videos and the copy is true for my business.</label>
+        <div style="display:flex;gap:10px"><button class="btn" style="flex:1" ${blocked ? "disabled" : ""}>Approve revision ${job.revision}</button><a class="btn light" href="#/jobs/${jobId}/edit">Edit</a></div>
+      </form></div>`;
+  } else if (job.state === "APPROVED") {
+    panel = `<div class="card"><h2>Approved</h2>
+      <dl class="kv"><dt>By</dt><dd>${esc(d.approval?.actor)} · web</dd><dt>At</dt><dd>${d.approval ? when(d.approval.approved_at) : "—"}</dd><dt>Fingerprint</dt><dd class="mono">${short(d.approval?.content_digest)}</dd></dl>
+      <p class="hint">Publishing re-checks this fingerprint. Editing anything clears the approval.</p>
+      <div style="display:flex;gap:10px"><button class="btn coral" style="flex:1" id="publish">Create 2 paused ads</button><a class="btn light" href="#/jobs/${jobId}/edit">Edit</a></div></div>`;
+  } else if (job.state === "PUBLISHED_PAUSED") {
+    const r = snap.publish_result;
+    panel = `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Published · paused</h2><span class="badge b-paused">fixture IDs</span></div>
+      <dl class="kv"><dt>Campaign</dt><dd class="mono">${esc(r.campaign_id)} · ${esc(r.campaign_status)}</dd><dt>Ad set</dt><dd class="mono">${esc(r.adset_id)} · ${esc(r.adset_status)}</dd>
+      ${r.ads.map((a) => `<dt>Ad · Hook ${esc(a.hook_id.toUpperCase())}</dt><dd class="mono">${esc(a.ad_id)} · ${esc(a.configured_status)}</dd>`).join("")}</dl>
+      <p class="hint">Nothing runs until you turn it on in Ads Manager. AdLoom never sets ads active.</p>
+      <a class="btn light wide" href="#/jobs/${jobId}/log">Open publish log</a></div>`;
+  } else if (job.state === "FAILED") {
+    panel = `<div class="card"><h2>Stopped at ${esc(job.failed_stage)}</h2><div class="note pink">${esc(job.error?.code)}<p>${esc(job.error?.detail)}</p></div>
+      <p class="hint">Finished steps are kept. Resume runs only the failed step and what follows.</p><button class="btn wide" data-resume="${jobId}">Resume</button></div>`;
+  } else {
+    panel = `<div class="card"><h2>Making</h2>${stepList(Math.min(MAKING.indexOf(job.state), 3))}</div>`;
+  }
+
+  const copy = u ? `<div class="card copy"><h2>Copy</h2><dl class="kv">
+      ${hooks.map((h) => `<dt>Hook ${esc(h.id.toUpperCase())}</dt><dd>${esc(h.text)}</dd>`).join("")}
+      <dt>Headline</dt><dd>${esc(u.headline)}</dd><dt>Primary text</dt><dd>${esc(u.primary_text)}</dd><dt>Button</dt><dd>${esc((plan?.cta || u.cta).replaceAll("_", " ").toLowerCase())}</dd></dl></div>` : "";
+
+  app.innerHTML = head(`<a href="#/">Jobs</a> / ${esc(u?.product_name || "job " + jobId.slice(0, 6))} / revision ${job.revision}`,
+      "Review & approve", "Check the six videos against your footage, fix copy if needed, then approve. Approval fingerprints exactly what you saw.",
+      stateBadge(job.state)) +
+    `<div class="grid2"><div class="stack">
+       <div class="card"><h2>Six variants${variants.length ? " · H.264 · AAC" : ""}</h2>${variants.length ? `<div class="variants">${tiles}</div>` : `<p class="hint">Videos appear here once assembly finishes.</p>`}</div>
+       ${copy}
+     </div><div class="stack">${panel}
+       ${warnings.length ? `<div class="note pink">What to check<div>${warnings.join("")}</div><p>Rule-based screen only. Not a Meta review result.</p></div>` : ""}
+     </div></div>`;
+  const form = document.getElementById("approve");
+  if (form) form.onsubmit = async (e) => {
+    e.preventDefault();
+    if (!form.reportValidity()) return;
+    const button = form.querySelector("button");
+    button.disabled = true;
+    try {
+      await api(`/api/jobs/${jobId}/approve`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actor: form.actor.value.trim(), digest: d.content_digest }) });
+      toast("Approved revision " + job.revision);
+      viewJob(jobId);
+    } catch (err) { toast(errorText(err), true); button.disabled = false; }
+  };
+  const pub = document.getElementById("publish");
+  if (pub) pub.onclick = async () => {
+    pub.disabled = true;
+    pub.innerHTML = `<span class="spinner"></span> Creating paused ads`;
+    try { await api(`/api/jobs/${jobId}/publish`, { method: "POST" }); toast("Created 2 paused ads"); viewJob(jobId); }
+    catch (err) { toast(errorText(err), true); viewJob(jobId); }
+  };
+  app.querySelectorAll("[data-resume]").forEach((b) => b.onclick = () => resume(b.dataset.resume, b));
+  if (MAKING.includes(job.state)) setTimeout(() => { if (location.hash === `#/jobs/${jobId}`) viewJob(jobId); }, 1500);
+}
+
+/* Edit */
+async function viewEdit(jobId) {
+  setNav("jobs");
+  const d = await api(`/api/jobs/${jobId}`);
+  const u = d.snapshot.understanding, job = d.job;
+  if (!u || !["AWAITING_APPROVAL", "APPROVED"].includes(job.state)) { location.hash = `#/jobs/${jobId}`; return; }
+  const hooks = d.snapshot.render_plan ? d.snapshot.render_plan.hooks : u.hook_candidates;
+  const field = (name, label, value, max, area = false) => `<label class="field">${label}
+      ${area ? `<textarea class="input" name="${name}" maxlength="${max}" required>${esc(value)}</textarea>` : `<input class="input" name="${name}" maxlength="${max}" required value="${esc(value)}">`}
+      <span class="counter" data-for="${name}">${value.length} / ${max}</span></label>`;
+  app.innerHTML = head(`<a href="#/">Jobs</a> / <a href="#/jobs/${jobId}">${esc(u.product_name)}</a> / revision ${job.revision}`, "Edit before approving",
+      "Changes create a new revision. Only the affected steps re-run, and the previous approval is cleared.") +
+    `<form class="grid2" id="edit"><div class="card stack"><h2 style="margin:0">Copy</h2>
+       ${field("hook_a", "Hook A · first 3 s", hooks[0].text, 22)}
+       ${field("hook_b", "Hook B · first 3 s", hooks[1].text, 22)}
+       ${field("headline", "Headline", u.headline, 40)}
+       ${field("primary_text", "Primary text", u.primary_text, 125, true)}
+     </div><div class="stack">
+       <div class="card"><h2>What will re-run</h2><dl class="kv">
+         <dt>Policy</dt><dd>Rules checked again</dd><dt>Videos</dt><dd>All 6 re-assembled</dd><dt>Tracking</dt><dd>Reused, not re-run</dd>
+         <dt>Approval</dt><dd style="color:var(--coral-deep)">Cleared · approve again</dd></dl></div>
+       <button class="btn wide" id="save">Save as revision ${job.revision + 1}</button>
+       <a class="btn light wide" href="#/jobs/${jobId}">Cancel</a>
+     </div></form>`;
+  const form = document.getElementById("edit");
+  form.querySelectorAll("input,textarea").forEach((el) => el.oninput = () => {
+    const c = form.querySelector(`[data-for="${el.name}"]`); c.textContent = `${el.value.length} / ${el.maxLength}`;
+  });
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    if (!form.reportValidity()) return;
+    const button = document.getElementById("save");
+    button.disabled = true;
+    button.innerHTML = `<span class="spinner"></span> Re-assembling 6 videos`;
+    const body = Object.fromEntries(["hook_a", "hook_b", "headline", "primary_text"].map((k) => [k, form[k].value.trim()]));
+    try { await api(`/api/jobs/${jobId}/edit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); toast("Saved a new revision"); location.hash = `#/jobs/${jobId}`; }
+    catch (err) { toast(errorText(err), true); button.disabled = false; button.textContent = `Save as revision ${job.revision + 1}`; }
+  };
+}
+
+/* Publish log */
+async function viewLog(jobId) {
+  setNav("log");
+  const jobs = jobId ? [{ job_id: jobId }] : (await api("/api/jobs")).filter((j) => ["APPROVED", "PUBLISHED_PAUSED", "FAILED"].includes(j.state));
+  const details = await Promise.all(jobs.map((j) => api(`/api/jobs/${j.job_id}`)));
+  const ops = details.flatMap((d) => d.operations.map((op) => ({ ...op, product: d.snapshot.understanding?.product_name || d.job.job_id.slice(0, 6) })));
+  const n = (fn) => ops.filter(fn).length;
+  const unknown = ops.filter((o) => o.phase === "UNKNOWN" || o.phase === "PREPARED");
+  const rows = ops.map((o) => {
+    const [label, cls] = PHASE[o.phase];
+    return `<tr><td>${esc(o.product)}</td><td class="mono hide-sm">${esc(o.operation_key)}</td><td>${resourceName(o)}</td><td><span class="badge ${cls}">${label}</span></td><td class="mono">${esc(o.remote_id || "—")}</td></tr>`;
+  }).join("");
+  app.innerHTML = head(jobId ? `<a href="#/jobs/${jobId}">Back to review</a>` : "All jobs", "Publish log",
+      "Every request AdLoom sends to Meta is saved before it is sent. Unknown results are checked, never re-sent automatically.") +
+    `<div class="metrics">
+      <div class="card metric"><span class="hint">Confirmed</span><b style="color:var(--success)">${n((o) => o.phase === "CONFIRMED")}</b></div>
+      <div class="card metric"><span class="hint">Unknown</span><b style="color:var(--danger)">${unknown.length}</b></div>
+      <div class="card metric"><span class="hint">Failed · not sent</span><b style="color:var(--warning)">${n((o) => o.phase === "FAILED")}</b></div>
+      <div class="card metric"><span class="hint">Ever set active by AdLoom</span><b>0</b></div>
+    </div>` +
+    (unknown.length ? `<div class="note pink" style="margin-bottom:16px">${unknown.length} request${unknown.length > 1 ? "s need" : " needs"} a check<p>The connection dropped after sending. Look it up in Ads Manager before trying again. Anything created stays paused.</p></div>` : "") +
+    (ops.length ? `<div class="card"><table><thead><tr><th>Video</th><th class="hide-sm">Operation key</th><th>Resource</th><th>Phase</th><th>Remote ID</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      : `<div class="card empty"><b>Nothing published yet</b><span class="hint">Approve a job, then create its paused ads. Each request shows up here.</span><a class="btn light" href="#/">Open jobs</a></div>`);
+}
+
+/* Settings */
+async function viewSettings() {
+  setNav("settings");
+  const s = await api("/api/status");
+  const item = (title, detail, badge, cls) => `<div style="display:flex;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--border)"><div style="flex:1"><b>${title}</b><div class="hint">${detail}</div></div><span class="badge ${cls}">${badge}</span></div>`;
+  app.innerHTML = head("This machine", "Settings", "Accounts, spending and data. Live calls stay off until each item below is ready.") +
+    `<div class="grid2" style="grid-template-columns:1fr 1fr">
+      <div class="stack">
+        <div class="card"><h2>Meta Model API</h2>
+          ${item("API key", "Read from MODEL_API_KEY on the server · never shown here", s.live ? "Connected" : "Not used in fixture mode", s.live ? "b-done" : "b-warn")}
+          ${item("Mode", `Standard only · ${esc(s.spark_model)} · contributor models are refused`, "Standard", "b-done")}
+          ${item("Spending limit", "Required before any live call", "Not set", "b-danger")}
+        </div>
+        <div class="card"><h2>Data</h2>
+          ${item("Uploaded videos", "Copied into the job folder on this machine; the upload copy is removed right away", "Local", "b-done")}
+          ${item("Model API files", "Live mode only: deleted after the job finishes", "Pending approval", "b-warn")}
+        </div>
+      </div>
+      <div class="stack">
+        <div class="card"><h2>Meta ad account</h2>
+          ${item("Ad account", "Needs KRW currency and ads_management", "Not connected", "b-danger")}
+          ${item("Facebook Page", "pages_read_engagement", "Not connected", "b-danger")}
+          ${item("Objective & button", "Traffic · Learn more", "Default", "b-done")}
+        </div>
+        <div class="card" style="background:var(--mint-soft)"><h2>Always on</h2>
+          ${item("Paused only", "Campaigns, ad sets and ads are created paused", "Locked", "b-done")}
+          ${item("Approval required", "Publishing checks the approved fingerprint", "Locked", "b-done")}
+          ${item("No generated video", "Frames come only from your footage and images", "Locked", "b-done")}
+        </div>
+      </div></div>`;
+}
+
+async function route() {
+  const hash = location.hash.replace(/^#/, "") || "/";
+  const parts = hash.split("/").filter(Boolean);
+  try {
+    if (parts.length === 0) await viewJobs();
+    else if (parts[0] === "new") viewNew();
+    else if (parts[0] === "settings") await viewSettings();
+    else if (parts[0] === "log") await viewLog();
+    else if (parts[0] === "jobs" && parts[2] === "edit") await viewEdit(parts[1]);
+    else if (parts[0] === "jobs" && parts[2] === "log") await viewLog(parts[1]);
+    else if (parts[0] === "jobs" && parts[1]) await viewJob(parts[1]);
+    else await viewJobs();
+  } catch (err) {
+    app.innerHTML = `<div class="card empty"><b>Could not load this page</b><span class="hint">${esc(errorText(err))}</span><a class="btn light" href="#/">Back to jobs</a></div>`;
+  }
+  window.scrollTo(0, 0);
+}
+window.addEventListener("hashchange", route);
+api("/api/status").then((s) => { document.getElementById("mode").textContent = s.live ? "live mode" : "fixture mode · no live calls"; }).catch(() => {});
+route();
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # AdLoom 코드베이스 설계 계약
 
-작성: 2026-10-25, 상태 갱신: 2026-10-27. [Architecture Spine](../../_bmad-output/planning-artifacts/architecture/architecture-AdLoom-2026-10-25/ARCHITECTURE-SPINE.md)의 서비스 설계 계약이다. 기존 스키마에 config·atomic job 저장·크롭·정책·mock 어댑터·단계·렌더·승인/게시·CLI를 연결했다. 현재 실행은 data-root lock 아래 동기 CLI이며 아래의 별도 worker·HTTP API·웹 편집·claim 검토 계약은 설계 상태다. 실행 방법은 루트 README, 태스크별 증거는 STATUS에 있다. root SPEC는 보존하며 설계는 SC-014, 데이터 규약은 SC-015, 재개 기록은 SC-017에 둔다.
+작성: 2026-10-25, 상태 갱신: 2026-11-02. [Architecture Spine](../../_bmad-output/planning-artifacts/architecture/architecture-AdLoom-2026-10-25/ARCHITECTURE-SPINE.md)의 서비스 설계 계약이다. 기존 스키마에 config·atomic job 저장·크롭·정책·mock 어댑터·단계·렌더·승인/게시·CLI를 연결했다. 현재 실행은 data-root lock 아래 동기 CLI와 같은 명령을 부르는 동기 로컬 웹(`web/app.py`, `web/static/index.html`)이다. 아래의 별도 worker·202 비동기 실행·session·claim 검토·장면/객체 편집 계약은 설계 상태다. 실행 방법은 루트 README, 태스크별 증거는 STATUS에 있다. root SPEC는 보존하며 설계는 SC-014, 데이터 규약은 SC-015, 재개 기록은 SC-017에 둔다.
 
 ## 1. 모듈별 단일 책임
 
@@ -126,7 +126,7 @@ publish는 immutable approved snapshot과 업로드 직전 hash를 확인한 같
 
 ## 5. API·CLI 공용 명령 계약
 
-아래 endpoint는 설계이며 현재 서버는 없다. 응답은 `{job, revision, manifest_seq, state, run_state, ...}`를 포함한다. 쓰기 요청은 session/CSRF와 명시 base 값을 검증한다.
+아래 endpoint는 설계다. 2026-11-02 구현한 로컬 웹은 이 중 일부를 동기 요청으로 제공한다: `GET/POST /api/jobs`(업로드 후 같은 요청에서 mock 파이프라인 실행), `GET /api/jobs/:id`, `POST /api/jobs/:id/{approve,publish,edit,resume}`, 검토용 미디어 `GET /api/jobs/:id/files/{renders,enrichment,images}/…`(Range 지원). session 대신 loopback Host 허용목록, 쓰기 요청의 `X-AdLoom-Request: 1` 헤더·Origin 일치, Content-Length 257MiB 사전 검사로 교차 사이트 쓰기를 403/413으로 거부한다. 승인은 화면에서 본 `content_digest`를 보내며 다르면 409다. 응답은 `{job, revision, manifest_seq, state, run_state, ...}`를 포함한다. 설계의 쓰기 요청은 session/CSRF와 명시 base 값을 검증한다.
 
 | HTTP | 공용 command | 결과 |
 | --- | --- | --- |
