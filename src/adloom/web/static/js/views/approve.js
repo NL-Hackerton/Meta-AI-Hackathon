@@ -1,5 +1,6 @@
 import { app, esc, won, api, setNav, head } from "../core.js";
 import { jobName, thumb, ago } from "../library.js";
+import { refreshWhileRunning } from "../flow.js";
 
 /* E4 Approve queue */
 export async function viewApprove() {
@@ -28,4 +29,5 @@ export async function viewApprove() {
       : `<div class="card empty">${`<span class="lv-hero-icon check" aria-hidden="true"></span>`}<b>Nothing to approve</b>
           <span class="hint">When your six videos are ready they show up here for review.</span>
           <a class="btn coral" href="#/new">Make ads from a video</a></div>`);
+  refreshWhileRunning(jobs, viewApprove);
 }

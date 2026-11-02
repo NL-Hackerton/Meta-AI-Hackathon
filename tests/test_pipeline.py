@@ -101,3 +101,30 @@ def test_cli_audio_note_stops_for_review_until_confirmed(tmp_path):
     assert cli("resume", created["job_id"])["state"] == "CREATED"
     confirmed = cli("confirm-note", created["job_id"], "--text", "합성 샘플 음성 설명")
     assert confirmed["state"] == "AWAITING_APPROVAL" and confirmed["note_status"] == "CONFIRMED"
+
+
+def test_pipeline_marks_run_state_while_stages_execute(tmp_path, monkeypatch):
+    from adloom.adapters.mock_providers import MockTracking
+    from adloom.config import Settings
+    from adloom.jobs import JobStore
+    from adloom.pipeline import run_file
+
+    seen = []
+    track = MockTracking.track
+
+    def observe(self, video, prompt):
+        store = JobStore(tmp_path)
+        (path,) = (tmp_path / "jobs").glob("*/job.json")
+        head = store.load(path.parent.name)
+        seen.append((head.run_state, head.pending_stage, head.active_run_id is not None))
+        seen.append(store.busy())
+        return track(self, video, prompt)
+
+    monkeypatch.setattr(MockTracking, "track", observe)
+    head = run_file(
+        Settings(data_dir=tmp_path), Path("tests/fixtures/sample.mp4"), "합성 샘플", "서울", 10000
+    )
+    assert seen == [("RUNNING", "track", True), True]
+    assert head.state == "AWAITING_APPROVAL" and head.run_state == "IDLE"
+    assert head.active_run_id is None and head.pending_stage is None
+    assert JobStore(tmp_path).busy() is False

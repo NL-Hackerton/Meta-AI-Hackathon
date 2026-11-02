@@ -18,7 +18,7 @@ export async function viewAds() {
     app.innerHTML = head("Paused ads on Meta", "My ads", "Ads appear here after you approve and publish a job.") +
       `<div class="card empty lv-empty"><span class="lv-hero-icon camera" aria-hidden="true"></span><b>No ads yet</b>
         <span class="hint">Shoot 3–45 seconds of your work and we will turn it into six ad videos.</span>
-        ${waiting ? `<a class="btn coral" href="#/approve">Approve ${waiting} waiting job${waiting === 1 ? "" : "s"}</a>` : `<a class="btn coral" href="#/new">Make my first ad</a>`}</div>`;
+        ${waiting ? `<a class="btn coral" href="#/approve">Approve ${waiting} waiting job${waiting === 1 ? "" : "s"}</a>` : `<a class="btn coral" href="#/new">Make ads from a video</a>`}</div>`;
     return;
   }
   const hookText = (ad) => (ad.job.hooks || []).find((h) => h.id === ad.hook_id)?.text || "";

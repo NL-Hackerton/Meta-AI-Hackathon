@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import os
 import re
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -32,6 +33,16 @@ from adloom.schemas import (
     TrackResult,
     Understanding,
 )
+
+LOCK_ATTEMPTS = 5
+# Stage a running command executes after reaching each state; other targets end the run.
+NEXT_STAGE: dict[JobState, Stage] = {
+    "CREATED": "understand",
+    "UNDERSTOOD": "track",
+    "TRACKED": "enrich",
+    "ENRICHED": "assemble",
+    "RENDERED": "assemble",
+}
 
 STATES: tuple[JobState, ...] = (
     "CREATED",
@@ -113,14 +124,32 @@ class JobStore:
     @contextmanager
     def execution_lock(self) -> Iterator[None]:
         with (self.root / ".run.lock").open("a+b") as stream:
-            try:
-                fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                raise AdLoomError("E_JOB_BUSY", "input", "Another command is running") from None
+            # busy() probes with a momentary shared lock; a few short retries keep that probe
+            # from turning into a spurious E_JOB_BUSY for a command that starts at that instant.
+            for attempt in range(LOCK_ATTEMPTS):
+                try:
+                    fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if attempt == LOCK_ATTEMPTS - 1:
+                        raise AdLoomError(
+                            "E_JOB_BUSY", "input", "Another command is running"
+                        ) from None
+                    time.sleep(0.02)
             try:
                 yield
             finally:
                 fcntl.flock(stream, fcntl.LOCK_UN)
+
+    def busy(self) -> bool:
+        """Whether a command holds the run lock. Never waits and never keeps the lock."""
+        with (self.root / ".run.lock").open("a+b") as stream:
+            try:
+                fcntl.flock(stream, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+            fcntl.flock(stream, fcntl.LOCK_UN)
+            return False
 
     def path(self, job_id: str, relative: str = "") -> Path:
         if re.fullmatch(r"[a-f0-9]{32}", job_id) is None:
@@ -211,6 +240,7 @@ class JobStore:
         reference = approval_ref or head.approval_ref
         if target == "RENDERED":
             reference = None
+        running = head.run_state == "RUNNING" and target in NEXT_STAGE
         return self.commit(
             head,
             snapshot,
@@ -219,8 +249,27 @@ class JobStore:
             approval_ref=reference,
             failed_stage=None,
             error=None,
-            pending_stage=None,
+            pending_stage=NEXT_STAGE[target] if running else None,
+            run_state="RUNNING" if running else "IDLE",
+            active_run_id=head.active_run_id if running else None,
             note_status="CONFIRMED",
+        )
+
+    def start_run(self, head: JobManifest, stage: Stage) -> JobManifest:
+        """Mark the job as executed by this command (caller holds execution_lock)."""
+        return self.commit(
+            head,
+            self.snapshot(head),
+            run_state="RUNNING",
+            active_run_id=uuid4().hex,
+            pending_stage=stage,
+        )
+
+    def end_run(self, head: JobManifest) -> JobManifest:
+        if head.run_state == "IDLE":
+            return head
+        return self.commit(
+            head, self.snapshot(head), run_state="IDLE", active_run_id=None, pending_stage=None
         )
 
     def fail(self, head: JobManifest, stage: Stage, error: ErrorDetail) -> JobManifest:

@@ -8,7 +8,7 @@ export async function viewAccount() {
   const [{ profile }, jobs, notes, status] = await Promise.all([api("/api/profile"), api("/api/jobs"), api("/api/notifications"), api("/api/status")]);
   setBell(notes);
   const unread = unreadCount(notes);
-  const toApprove = jobs.filter((j) => j.state === "AWAITING_APPROVAL").length;
+  const toApprove = jobs.filter((j) => j.state === "AWAITING_APPROVAL" || j.state === "APPROVED").length;
   const metaLine = status.meta.connected ? "Meta connected" : "Meta not connected";
   const initial = profile ? esc(profile.business_name.trim().charAt(0).toUpperCase()) : icon("user", "gray");
   app.innerHTML = `<div class="head lv-head-row"><div><div class="crumb">This machine</div><h1>MY</h1></div></div>
@@ -23,7 +23,7 @@ export async function viewAccount() {
             <a href="#/approve"><b>${toApprove}</b><small>to approve</small></a>
           </div>
         </div>
-        ${profile ? "" : `<a class="lv-setup" href="#/welcome">${icon("user")}<span class="lv-text"><b>Set up your business</b><small>Used for copy, the end card and job defaults</small></span><span class="btn coral small">Start</span></a>`}
+        ${profile ? "" : `<a class="lv-setup" href="#/welcome">${icon("user")}<span class="lv-text"><b>Set up your business</b><small>Area, budget and booking link for new jobs, and the language of the ad copy</small></span><span class="btn coral small">Start</span></a>`}
       </div>
       <div class="stack">
         <div class="card lv-list">
@@ -46,12 +46,14 @@ export async function viewData() {
   setNav("me");
   const [jobs, status] = await Promise.all([api("/api/jobs"), api("/api/status")]);
   const fixture = !status.live;
+  const busy = Boolean(status.busy);
+  const running = jobs.find((j) => j.run_state === "RUNNING" || j.run_state === "CANCEL_REQUESTED");
   const line = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
   const jobRow = (j) => `<li class="lv-row lv-del" data-job="${esc(j.job_id)}">
       ${thumb(j)}
       <span class="lv-text"><b>${esc(jobName(j))}</b><small>${esc(when(j.created_at))} · job ${esc(j.job_id.slice(0, 6))}${(j.published_ads || []).length ? " · 2 ads on Meta" : ""}</small></span>
       ${jobBadge(j)}
-      <button class="btn light small" type="button" data-ask>Delete</button>
+      <button class="btn light small" type="button" data-ask ${busy ? `disabled aria-describedby="busyNote"` : ""}>Delete</button>
       <div class="lv-confirm" hidden>
         <p><b>Delete this job from this machine?</b> Its source copy, renders, images and records are removed. This cannot be undone.${(j.published_ads || []).length ? " The 2 paused ads already created on Meta are not removed." : ""}</p>
         <p class="lv-err" role="alert"></p>
@@ -76,6 +78,7 @@ export async function viewData() {
           <p>Campaigns and ads stay in the ad account (paused) until you remove them in Ads Manager.</p></div>
       </div>
       <div class="card"><h2>Jobs on this machine · ${jobs.length}</h2>
+        ${busy ? `<p class="note violet lv-gap" id="busyNote">Another job is being made${running ? ` · <a href="#/jobs/${esc(running.job_id)}">${esc(jobName(running))}</a>` : ""}<span class="lv-inline"> · deleting is paused until it finishes.</span></p>` : ""}
         ${jobs.length ? `<ul class="lv-dellist">${jobs.map(jobRow).join("")}</ul>` : `<p class="hint">No jobs stored. Nothing to delete.</p>`}
       </div>
     </div>`;

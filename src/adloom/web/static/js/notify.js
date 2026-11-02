@@ -40,5 +40,5 @@ export function setBell(items) {
 }
 
 export async function refreshBell() {
-  try { setBell(await api("/api/notifications")); } catch { /* bell stays as it was if the list cannot load */ }
+  try { setBell(await api("/api/notifications", { global: true })); } catch { /* bell stays as it was if the list cannot load */ }
 }

@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from adloom.adapters.base import get_adapters
 from adloom.config import AdLoomError, Settings
-from adloom.jobs import JobStore, atomic_write
+from adloom.jobs import NEXT_STAGE, JobStore, atomic_write
 from adloom.policy import check, understanding_fields
 from adloom.schemas import (
     Brief,
@@ -48,12 +48,17 @@ def _run(settings: Settings, store: JobStore, head: JobManifest) -> JobManifest:
         if head.failed_stage == "publish":
             return publish(store, head, adapters.marketing)
         head = store.resume(head)
+    # A RUNNING head left by a crashed process continues from its last successful state.
+    first: Stage | None = NEXT_STAGE.get(head.state)
+    if head.state == "CREATED" and head.note_status != "CONFIRMED":
+        first = "input" if head.note_status == "AUDIO_PENDING" else None
+    if first is None:
+        return store.end_run(head)
+    head = store.start_run(head, first)
     stage: Stage = "input"
     try:
         snapshot = store.snapshot(head)
         if head.state == "CREATED":
-            if head.note_status == "REVIEW_REQUIRED":
-                return head
             if head.note_status == "AUDIO_PENDING":
                 # A transcript is only a proposal; the owner confirms it before understanding.
                 proposal = fill_note(snapshot.brief, root, adapters.voice).note_text
@@ -61,6 +66,9 @@ def _run(settings: Settings, store: JobStore, head: JobManifest) -> JobManifest:
                     head,
                     snapshot.model_copy(update={"note_proposal": proposal}),
                     note_status="REVIEW_REQUIRED",
+                    run_state="IDLE",
+                    active_run_id=None,
+                    pending_stage=None,
                 )
             brief = snapshot.brief
             stage = "understand"
@@ -162,6 +170,7 @@ def run_file(
     note_audio: Path | None = None,
     destination: str | None = None,
     job_id: str | None = None,
+    language: Literal["ko", "en"] = "ko",
 ) -> JobManifest:
     """Create a job and run it. An audio-only explanation stops at note review."""
     store = JobStore(settings.data_dir)
@@ -187,18 +196,24 @@ def run_file(
                 "region": region,
                 "daily_budget_krw": budget,
                 "destination_url": destination,
+                "language": language,
             }
         )
         (root / "input").mkdir(parents=True)
-        shutil.copyfile(video, root / "input/source.mp4")
-        if note_audio is not None:
-            if not note_audio.is_file() or note_audio.stat().st_size > 32 * 1024 * 1024:
-                raise AdLoomError(
-                    "E_INPUT_INVALID", "input", "Select an explanation audio file up to 32 MiB"
-                )
-            shutil.copyfile(note_audio, root / f"input/note{audio_suffix}")
-        media = normalize(root / "input/source.mp4", root / brief.video_path)
-        head = store.create(brief, media, job_id)
+        try:
+            shutil.copyfile(video, root / "input/source.mp4")
+            if note_audio is not None:
+                if not note_audio.is_file() or note_audio.stat().st_size > 32 * 1024 * 1024:
+                    raise AdLoomError(
+                        "E_INPUT_INVALID", "input", "Select an explanation audio file up to 32 MiB"
+                    )
+                shutil.copyfile(note_audio, root / f"input/note{audio_suffix}")
+            media = normalize(root / "input/source.mp4", root / brief.video_path)
+            head = store.create(brief, media, job_id)
+        except BaseException:
+            # No job record exists yet; do not leave a copy of the customer's video behind.
+            shutil.rmtree(root, ignore_errors=True)
+            raise
         return _run(settings, store, head)
 
 

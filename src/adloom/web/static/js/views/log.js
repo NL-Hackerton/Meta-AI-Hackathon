@@ -7,7 +7,7 @@ export async function viewLog(jobId) {
   const jobs = jobId ? [{ job_id: jobId }] : (await api("/api/jobs")).filter((j) => ["APPROVED", "PUBLISHED_PAUSED"].includes(j.state) || (j.state === "FAILED" && j.failed_stage === "publish"));
   const details = await Promise.all(jobs.map((j) => api(`/api/jobs/${j.job_id}`)));
   const ops = details.flatMap((d) => d.operations.map((op) => ({
-    ...op, running: isRunning(d.job), product: d.snapshot?.understanding?.product_name || `job ${d.job.job_id.slice(0, 6)}`,
+    ...op, running: isRunning(d.job), product: d.snapshot?.understanding?.product_name || "Untitled video",
   })));
   const n = (fn) => ops.filter(fn).length;
   const open = unresolved(ops).filter((o) => !o.running);
@@ -29,7 +29,7 @@ export async function viewLog(jobId) {
     open.map((o) => `<div class="note pink cv-check">${open.length > 1 ? "" : "1 request needs a check · "}${esc(o.product)} · ${esc(resourceName(o).toLowerCase())}
         <p>The connection dropped after sending <span class="mono">${esc(o.operation_key)}</span>. Looking it up on Meta needs the live connection, which is off in fixture mode. You can stop this attempt; anything created stays paused.</p>
         ${stopForm(o, o.job_id)}</div>`).join("") +
-    (ops.length ? `<div class="card"><table><thead><tr><th>Video</th><th class="hide-sm">Operation key</th><th>Resource</th><th>Phase</th><th>Remote ID</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    (ops.length ? `<div class="card"><div class="cv-table-wrap"><table class="cv-wraptable"><thead><tr><th>Video</th><th class="hide-sm">Operation key</th><th>Resource</th><th>Phase</th><th>Remote ID</th></tr></thead><tbody>${rows}</tbody></table></div></div>`
       : `<div class="card empty"><b>Nothing published yet</b><span class="hint">Approve a job, then create its paused ads. Each request shows up here.</span><a class="btn light" href="#/jobs">Open jobs</a></div>`);
   wireStop(app, () => viewLog(jobId));
 }

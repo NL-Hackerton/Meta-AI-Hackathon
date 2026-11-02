@@ -11,6 +11,7 @@
 <script type="module" src="/static/js/main.js"></script>
 </head>
 <body>
+<div id="routebar" aria-hidden="true"></div>
 <div class="wrap">
   <nav class="top" aria-label="Main">
     <a class="logo" href="#/">
@@ -25,15 +26,15 @@
     <span class="mode" id="mode">fixture mode · no live calls</span>
     <a class="bell" href="#/notifications" data-nav="notifications" aria-label="Notifications"><span id="bellDot" hidden></span></a>
   </nav>
-  <main id="app" aria-live="polite"></main>
+  <main id="app"></main>
   <footer>All IDs here are fixture IDs. Live model and ad calls stay off until the Meta account, permissions and spend limit are approved.</footer>
 </div>
 <nav class="tabbar" aria-label="Main (mobile)">
   <a href="#/" data-nav="home"><i class="ti home" aria-hidden="true"></i>Home</a>
   <a href="#/ads" data-nav="ads"><i class="ti ads" aria-hidden="true"></i>My ads</a>
   <a href="#/new" data-nav="new" class="fab" aria-label="New job"><i aria-hidden="true"></i></a>
-  <a href="#/approve" data-nav="approve"><i class="ti approve" aria-hidden="true"></i>Approve</a>
-  <a href="#/me" data-nav="me"><i class="ti me" aria-hidden="true"></i>MY</a>
+  <a href="#/approve" data-nav="approve" data-also="jobs"><i class="ti approve" aria-hidden="true"></i>Approve</a>
+  <a href="#/me" data-nav="me" data-also="log settings"><i class="ti me" aria-hidden="true"></i>MY</a>
 </nav>
 </body>
 </html>

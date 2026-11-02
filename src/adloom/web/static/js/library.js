@@ -23,7 +23,7 @@ export function icon(name, tone = TONES[name]) {
   return `<span class="lv-icon ${tone}" aria-hidden="true"><svg viewBox="0 0 24 24">${ICON_PATHS[name]}</svg></span>`;
 }
 
-export const jobName = (job) => job.product_name || `Video ${job.job_id.slice(0, 6)}`;
+export const jobName = (job) => job.product_name || "Untitled video";
 
 export function thumb(job, cls = "lv-thumb") {
   return job.thumbnail_url ? `<img class="${cls}" src="${esc(job.thumbnail_url)}" alt="" loading="lazy">` : `<span class="${cls}" aria-hidden="true"></span>`;

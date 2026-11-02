@@ -275,6 +275,7 @@ def publish(store: JobStore, head: JobManifest, adapter: MarketingPublisher) -> 
     plan = subject.publish_plan
     if plan.execution_mode != "fixture":
         raise AdLoomError("E_API_AUTH", "publish", "Live publishing requires H3 approval")
+    head = store.start_run(head, "publish")
     try:
         campaign = _operation(
             store,

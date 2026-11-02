@@ -100,13 +100,28 @@ textarea.input { resize: vertical; min-height: 88px; line-height: 1.5; }
 .check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; font-weight: 700; cursor: pointer; }
 .check input { width: 18px; height: 18px; accent-color: var(--violet); margin-top: 1px; }
 .empty { text-align: center; padding: 48px 20px; display: grid; gap: 10px; justify-items: center; }
-.empty b { font-size: 18px; }
+.empty b, .empty h1 { font-size: 18px; margin: 0; letter-spacing: 0; }
 .spinner { width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid rgba(255,255,255,.4); border-top-color: #fff; animation: spin .8s linear infinite; }
 .steps .spinner { border-color: rgba(123,97,255,.25); border-top-color: var(--violet); }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
-.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--inverse); color: #fff; padding: 12px 18px; border-radius: var(--r-md); font-weight: 700; box-shadow: var(--shadow); z-index: 10; }
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 32px); background: var(--inverse); color: #fff; padding: 12px 18px; border-radius: var(--r-md); font-weight: 700; box-shadow: var(--shadow); z-index: 30; animation: toast-in .24s cubic-bezier(.2,.8,.2,1); }
 .toast.error { background: var(--danger); }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 12px); } }
+/* Navigation: thin progress bar, inert dimmed old screen, short enter motion for the new one. */
+#routebar { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 20; pointer-events: none; background: linear-gradient(90deg, var(--coral), var(--pink), var(--violet)); transform: scaleX(0); transform-origin: left; opacity: 0; transition: opacity .2s ease .1s; }
+#routebar.on { opacity: 1; transition-delay: .12s; animation: routebar 1.6s cubic-bezier(.2,.7,.2,1) .12s forwards; }
+@keyframes routebar { from { transform: scaleX(0); } to { transform: scaleX(.85); } }
+#app { transition: opacity .16s ease; }
+#app.leaving { opacity: .45; }
+#app.entering { animation: view-in .28s cubic-bezier(.2,.8,.2,1); }
+@keyframes view-in { from { opacity: 0; transform: translateY(10px); } }
+h1[tabindex="-1"]:focus { outline: none; }
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; }
+  .toast, #app.entering, #routebar.on { animation: none; }
+  #routebar.on { transform: scaleX(.85); }
+  #app { transition: none; }
+}
 footer { margin-top: 24px; color: var(--text-3); font-size: 12px; }
 .bell { width: 36px; height: 36px; border-radius: 50%; background: var(--surface); box-shadow: var(--shadow); display: grid; place-items: center; position: relative; flex: none; }
 .bell::before { content: ""; width: 14px; height: 13px; border: 2px solid var(--text); border-bottom-width: 2.5px; border-radius: 8px 8px 2px 2px; }
@@ -125,6 +140,7 @@ footer { margin-top: 24px; color: var(--text-3); font-size: 12px; }
   .mode { margin-left: 0; }
   .hide-sm { display: none; }
   .head { flex-direction: column; align-items: stretch; }
+  .head > .badge { align-self: flex-start; }
   .variants { grid-template-columns: repeat(2, 1fr); }
   h1 { font-size: 26px; }
   .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }

@@ -1,11 +1,12 @@
 "use strict";
 // Voice description: record with MediaRecorder or attach an audio file, then preview.
-import { esc } from "./core.js";
+import { esc, onLeave } from "./core.js";
 
 const MAX_SECONDS = 60;
 const MAX_BYTES = 32 * 1024 * 1024;
 const AUDIO_EXT = { "audio/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/wav": "wav", "audio/x-wav": "wav", "audio/mpeg": "mp3" };
 const ACCEPT = ".webm,.ogg,.m4a,.mp4,.wav,.mp3,audio/webm,audio/ogg,audio/mp4,audio/x-m4a,audio/wav,audio/mpeg";
+const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export function voiceHtml() {
@@ -68,14 +69,36 @@ export function mountVoice(root, onChange) {
   };
 
   const stop = () => { if (recorder && recorder.state === "recording") recorder.stop(); };
+  let left = false;
+  // Leaving the screen must release the microphone, timers and the preview URL at once.
+  onLeave(() => {
+    left = true;
+    if (recorder) recorder.onstop = null;
+    if (recorder && recorder.state === "recording") recorder.stop();
+    stream?.getTracks().forEach((track) => track.stop());
+    clearInterval(tick);
+    audioCtx?.close();
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+  });
+  let starting = false;
   const start = async () => {
+    if (starting) return;
+    starting = true;
+    button.disabled = true;
+    setHint("Waiting for microphone permission…");
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (err) {
+      starting = false;
+      button.disabled = false;
+      if (left) return;
       const denied = err && (err.name === "NotAllowedError" || err.name === "SecurityError");
       setHint(denied ? "Microphone access was blocked. Allow it in your browser, or attach an audio file." : "No microphone was found. Attach an audio file instead.", true);
       return;
     }
+    starting = false;
+    button.disabled = false;
+    if (left) { stream.getTracks().forEach((track) => track.stop()); return; }
     chunks = [];
     recorder = new MediaRecorder(stream);
     recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
@@ -99,7 +122,7 @@ export function mountVoice(root, onChange) {
     showTake(null);
     tick = setInterval(() => {
       const s = Math.floor((Date.now() - started) / 1000);
-      timer.textContent = `0:${String(Math.min(s, MAX_SECONDS)).padStart(2, "0")}`;
+      timer.textContent = mmss(Math.min(s, MAX_SECONDS));
       if (s >= MAX_SECONDS) stop();
     }, 250);
     try {

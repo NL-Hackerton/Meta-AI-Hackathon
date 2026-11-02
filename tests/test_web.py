@@ -170,9 +170,9 @@ def approve_via_web(client, job_id: str) -> None:
     assert response.status_code == 200, response.text
 
 
-def upload(client, files, note: str | None = None):
+def upload(client, files, note: str | None = None, **fields: str):
     with Path("tests/fixtures/sample.mp4").open("rb") as video:
-        data = {"region": "서울", "budget": "10000"}
+        data = {"region": "서울", "budget": "10000", **fields}
         if note is not None:
             data["note"] = note
         return client.post(
@@ -250,8 +250,9 @@ def test_unknown_audio_fails_at_input_and_typed_note_recovers(client):
     head = response.json()
     assert head["state"] == "FAILED" and head["failed_stage"] == "input"
     assert head["error"]["detail"] and head["note_status"] == "AUDIO_PENDING"
-    kinds = {n["kind"] for n in client.get("/api/notifications").json()}
-    assert kinds == {"failed"}
+    notices = client.get("/api/notifications").json()
+    assert [n["kind"] for n in notices] == ["note_review"]
+    assert "fixture" not in notices[0]["detail"]
     confirmed = client.post(f"/api/jobs/{head['job_id']}/confirm-note", json={"text": "합성 샘플"})
     assert confirmed.status_code == 200, confirmed.text
     assert confirmed.json()["state"] == "AWAITING_APPROVAL"
@@ -395,3 +396,92 @@ def test_notifications_derive_ready_and_published(client, tmp_path, rendered_cas
     assert all(
         ad["configured_status"] == "PAUSED" and ad["video_url"] for ad in item["published_ads"]
     )
+
+
+def running_job(tmp_path: Path, rendered_case) -> str:
+    root, snapshot = rendered_case
+    store = JobStore(tmp_path)
+    head = store.create(snapshot.brief, snapshot.media)
+    shutil.copytree(root, store.path(head.job_id), dirs_exist_ok=True)
+    snapshot = snapshot.model_copy(
+        update={
+            "publish_plan": fixture_publish_plan(snapshot),
+            "variants": (),
+            "render_plan": None,
+        }
+    )
+    for state in ("UNDERSTOOD", "TRACKED", "ENRICHED"):
+        head = store.transition(head, state, snapshot)
+    store.commit(
+        head, snapshot, run_state="RUNNING", active_run_id="f" * 32, pending_stage="assemble"
+    )
+    return head.job_id
+
+
+def test_stale_running_job_reports_interrupted_and_resumes(client, tmp_path, rendered_case):
+    job_id = running_job(tmp_path, rendered_case)
+    assert client.get(f"/api/jobs/{job_id}").json()["job"]["run_state"] == "INTERRUPTED"
+    assert client.get("/api/jobs").json()[0]["run_state"] == "INTERRUPTED"
+    assert JobStore(tmp_path).load(job_id).run_state == "RUNNING"
+    with JobStore(tmp_path).execution_lock():
+        assert client.get(f"/api/jobs/{job_id}").json()["job"]["run_state"] == "RUNNING"
+        assert client.get("/api/status").json()["busy"] is True
+    assert client.get("/api/status").json()["busy"] is False
+    resumed = client.post(f"/api/jobs/{job_id}/resume")
+    assert resumed.status_code == 200, resumed.text
+    head = resumed.json()
+    assert head["state"] == "AWAITING_APPROVAL" and head["run_state"] == "IDLE"
+    assert head["active_run_id"] is None and head["pending_stage"] is None
+
+
+def test_publish_marks_job_running_until_it_finishes(client, tmp_path, rendered_case, monkeypatch):
+    job_id = awaiting_job(tmp_path, rendered_case)
+    approve_via_web(client, job_id)
+    seen = []
+    create = MockMarketing.create
+
+    def observe(self, resource, payload, operation_key):
+        head = JobStore(tmp_path).load(job_id)
+        seen.append((head.run_state, head.pending_stage, head.active_run_id is not None))
+        return create(self, resource, payload, operation_key)
+
+    monkeypatch.setattr(MockMarketing, "create", observe)
+    published = client.post(f"/api/jobs/{job_id}/publish").json()
+    assert seen and set(seen) == {("RUNNING", "publish", True)}
+    assert published["run_state"] == "IDLE" and published["active_run_id"] is None
+
+
+def test_upload_language_is_recorded_and_validated(client):
+    english = upload(client, {}, note="Synthetic sample", language="en")
+    assert english.status_code == 200, english.text
+    detail = client.get(f"/api/jobs/{english.json()['job_id']}").json()
+    assert detail["snapshot"]["brief"]["language"] == "en"
+    assert upload(client, {}, note="x", language="fr").status_code == 422
+
+
+def test_rejected_video_leaves_no_orphan_job_folder(client, tmp_path):
+    response = client.post(
+        "/api/jobs",
+        data={"note": "n", "region": "Seoul", "budget": "10000"},
+        files={"video": ("clip.mp4", b"not a video", "video/mp4")},
+    )
+    assert response.status_code == 422
+    assert list((tmp_path / "jobs").iterdir()) == []
+    assert not any((tmp_path / "uploads").glob("*"))
+
+
+def test_job_list_skips_jobs_deleted_mid_listing(client, tmp_path, rendered_case, monkeypatch):
+    kept = awaiting_job(tmp_path, rendered_case)
+    gone = awaiting_job(tmp_path, rendered_case)
+    load = JobStore.load
+
+    def racing(self, job_id):
+        if job_id == gone:
+            raise FileNotFoundError(job_id)
+        return load(self, job_id)
+
+    monkeypatch.setattr(JobStore, "load", racing)
+    listed = client.get("/api/jobs")
+    assert listed.status_code == 200
+    assert [job["job_id"] for job in listed.json()] == [kept]
+    assert client.get("/api/notifications").status_code == 200

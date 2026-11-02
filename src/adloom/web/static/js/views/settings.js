@@ -19,9 +19,10 @@ export async function viewSettings() {
         <div class="card"><h2>Defaults for new jobs</h2>
           ${profile
             ? `${item("Daily budget", "Per ad set · edit in your business profile", esc(won(profile.daily_budget_krw)), "b-done")}
-               ${item("Area", esc(profile.region), esc(profile.language === "ko" ? "Korean copy" : "English copy"), "b-done")}
+               ${item("Area", esc(profile.region), "Default", "b-done")}
+               ${item("Copy language", "Sent with each new job as the language for the ad copy", profile.language === "ko" ? "Korean" : "English", "b-done")}
                ${item("Link", esc(profile.destination_url || "No booking link · ads use the page you enter per job"), profile.destination_url ? "Set" : "Not set", profile.destination_url ? "b-done" : "b-warn")}`
-            : item("Business profile", "Needed for job defaults and the end card", "Not set", "b-warn")}
+            : item("Business profile", "Fills in area, budget, booking link and copy language for new jobs", "Not set", "b-warn")}
           <a class="btn light small lv-gap-top" href="#/me/profile">${profile ? "Edit business profile" : "Set up business profile"}</a>
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use strict";
 // Shared helpers for the create → review → publish flow views.
-import { esc, api, toast, errorText, stepList, NOTE_PENDING, needsNote } from "./core.js";
+import { esc, api, toast, errorText, stepList, NOTE_PENDING, needsNote, currentNav, onLeave } from "./core.js";
+import { refreshBell } from "./notify.js";
 export { NOTE_PENDING, needsNote };
 
 export const STAGE_STEP = { input: 0, understand: 0, track: 1, enrich: 2, assemble: 3, publish: 4 };
@@ -24,22 +25,66 @@ export function clock(us, fine = false) {
   return fine ? `${m}:${s.toFixed(2).padStart(5, "0")}` : `${m}:${String(Math.floor(s)).padStart(2, "0")}`;
 }
 
-/** Repeats `fn` every `ms` while `alive()` holds; returns a stop function. */
+/** Repeats `fn` every `ms` while `alive()` holds on this screen; returns a stop function. */
 export function poll(fn, ms, alive) {
+  const nav = currentNav();
   let stopped = false, timer = 0;
+  const live = () => !stopped && nav === currentNav() && alive();
   const tick = async () => {
-    if (stopped || !alive()) return;
+    if (!live()) return;
     try { await fn(); } catch (_) { /* transient; the next tick retries */ }
-    if (!stopped && alive()) timer = setTimeout(tick, ms);
+    if (live()) timer = setTimeout(tick, ms);
   };
+  const stop = () => { stopped = true; clearTimeout(timer); };
   timer = setTimeout(tick, ms);
-  return () => { stopped = true; clearTimeout(timer); };
+  onLeave(stop);
+  return stop;
 }
 
 export const onRoute = (hash) => () => location.hash === hash;
 
+
+/** While any job is running, re-renders the screen once the job list changes. */
+export function refreshWhileRunning(jobs, rerender, alive = () => true) {
+  if (!jobs.some(isRunning)) return;
+  const sign = (list) => list.map((j) => `${j.job_id}:${j.state}:${j.run_state}:${j.pending_stage}`).join("|");
+  const before = sign(jobs);
+  const stop = poll(async () => {
+    if (sign(await api("/api/jobs")) !== before) { stop(); rerender(); }
+  }, 1500, alive);
+}
 export const actorName = () => localStorage.getItem("adloom.actor") || "";
 export const rememberActor = (name) => localStorage.setItem("adloom.actor", name);
+export const actorError = `<span class="cv-inline-err" data-actor-error role="alert" hidden>Enter your name. Spaces alone are not a name.</span>`;
+
+/** Trimmed actor name from `form.actor`, or null after showing the inline message. */
+export function checkActor(form) {
+  const value = form.actor.value.trim(), msg = form.querySelector("[data-actor-error]");
+  if (msg) msg.hidden = !!value;
+  if (!value) { form.actor.setAttribute("aria-invalid", "true"); form.actor.focus(); return null; }
+  form.actor.removeAttribute("aria-invalid");
+  return value;
+}
+
+export const BUSY_REASON = "Another job is being made. This unlocks when it finishes.";
+export const busyNote = () => `<div class="note yellow cv-busy" role="status">Another job is being made<p>Approve, publish, edit, resume and confirm stay locked until it finishes. This page updates on its own.</p></div>`;
+
+/** Whether the server is running a command for any job (`/api/status` busy). */
+export async function serverBusy() {
+  try { return !!(await api("/api/status")).busy; } catch (_) { return false; }
+}
+
+/** Locks the matching controls in `root` with a reason, then calls `free()` once the server is idle. */
+export function holdWhileBusy(root, selector, free) {
+  root.querySelectorAll(selector).forEach((el) => {
+    if (el.tagName === "A") { el.classList.add("cv-off"); el.setAttribute("aria-disabled", "true"); el.tabIndex = -1; el.addEventListener("click", (e) => e.preventDefault()); }
+    else el.disabled = true;
+    el.title = BUSY_REASON;
+  });
+  const stop = poll(async () => { if (!(await serverBusy())) { stop(); free(); } }, 2000, () => true);
+}
+
+export const isInterrupted = (job) => job.run_state === "INTERRUPTED";
 
 /** C4-style failure card: steps with the failed one marked, the error, and a resume action. */
 export function failureCard(job, { title = "We stopped at one step", openLink = false, startOver = true } = {}) {
@@ -53,7 +98,7 @@ export function failureCard(job, { title = "We stopped at one step", openLink = 
       <div class="cv-actions">
         <button class="btn coral" data-resume-job="${esc(job.job_id)}">Resume from ${esc(STAGE_LABEL[stage] || stage)}</button>
         ${openLink ? `<a class="btn light" href="#/jobs/${esc(job.job_id)}">Open the job</a>` : ""}
-        ${startOver ? `<a class="btn light" href="#/new">Start over with a new video</a>` : ""}
+        ${startOver ? `<a class="btn light" href="#/new">New job</a>` : ""}
       </div></div>`;
 }
 
@@ -66,14 +111,16 @@ export function wireResume(root, after) {
     try { await api(`/api/jobs/${id}/resume`, { method: "POST" }); }
     catch (err) { toast(errorText(err), true); }
     after(id);
+    refreshBell();
   });
 }
 
 /** "Stop this attempt" form for one unresolved publish operation (UNKNOWN/PREPARED). */
 export function stopForm(op, jobId) {
-  return `<form class="cv-stop" data-stop-job="${esc(jobId)}" data-stop-key="${esc(op.operation_key)}">
+  return `<form class="cv-stop" data-stop-job="${esc(jobId)}" data-stop-key="${esc(op.operation_key)}" novalidate>
       <label class="field">Your name, recorded with this decision
         <input class="input" name="actor" required maxlength="80" autocomplete="name" value="${esc(actorName())}" placeholder="Your name"></label>
+      ${actorError}
       <p class="hint">Stopping marks this request as abandoned. AdLoom will never re-send it, and this job can no longer publish. Anything already created stays paused.</p>
       <button class="btn light">Stop attempt</button></form>`;
 }
@@ -81,8 +128,9 @@ export function stopForm(op, jobId) {
 export function wireStop(root, after) {
   root.querySelectorAll("form[data-stop-key]").forEach((form) => form.onsubmit = async (event) => {
     event.preventDefault();
-    if (!form.reportValidity()) return;
-    const button = form.querySelector("button"), actor = form.actor.value.trim();
+    const actor = checkActor(form);
+    if (!actor) return;
+    const button = form.querySelector("button");
     button.disabled = true;
     button.innerHTML = `<span class="spinner"></span> Stopping`;
     try {
@@ -92,6 +140,7 @@ export function wireStop(root, after) {
       });
       rememberActor(actor);
       toast("Attempt stopped. Nothing will be re-sent.");
+      refreshBell();
       after();
     } catch (err) { toast(errorText(err), true); button.disabled = false; button.textContent = "Stop attempt"; }
   });

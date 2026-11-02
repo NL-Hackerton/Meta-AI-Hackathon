@@ -1,5 +1,6 @@
-import { app, esc, api, toast, errorText, setNav, head, stepList } from "../core.js";
+import { app, esc, api, toast, errorText, setNav, head, stepList, onLeave } from "../core.js";
 import { activeStep, failureCard, wireResume, needsNote, poll, onRoute } from "../flow.js";
+import { refreshBell } from "../notify.js";
 import { voiceHtml, mountVoice } from "../recorder.js";
 
 const MIN_S = 3, MAX_S = 45, MAX_MB = 256;
@@ -36,7 +37,7 @@ export async function viewNew() {
         <div id="voiceBox" hidden>${voiceHtml()}</div>
         <div class="row3">
           <label class="field">Area<input class="input" name="region" required maxlength="60" value="${esc(profile?.region || "")}" placeholder="Namyangju"></label>
-          <label class="field">Daily budget (KRW)<input class="input mono" name="budget" type="number" min="1000" step="1000" value="${esc(profile?.daily_budget_krw ?? 10000)}" required></label>
+          <label class="field">Daily budget (KRW)<input class="input mono" name="budget" type="number" min="1000" step="1" inputmode="numeric" value="${esc(profile?.daily_budget_krw ?? 10000)}" required></label>
           <label class="field">Landing URL<input class="input" name="destination" type="url" pattern="https://.*" value="${esc(profile?.destination_url || "")}" placeholder="https://"></label>
         </div>
         ${profile ? `<p class="hint" style="margin:0">Filled from your business profile · <a href="#/me/profile">${esc(profile.business_name)}</a>. Changes here apply to this job only.</p>` : `<p class="hint" style="margin:0">Save a <a href="#/me/profile">business profile</a> to fill these in next time.</p>`}
@@ -51,7 +52,7 @@ export async function viewNew() {
   </form>`;
 
   const form = document.getElementById("form"), input = document.getElementById("video");
-  const state = { file: null, info: null, ok: false, mode: "text", audio: null };
+  const state = { file: null, info: null, ok: false, mode: "text", audio: null, language: profile?.language || "ko", submitting: false };
   const note = document.getElementById("note");
   note.oninput = () => {
     const c = document.getElementById("noteCount");
@@ -73,10 +74,31 @@ export async function viewNew() {
     const drop = document.getElementById("drop");
     drop.onclick = () => input.click();
     drop.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } };
-    drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
-    drop.ondragleave = () => drop.classList.remove("over");
-    drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); pick(e.dataTransfer.files[0]); };
   };
+  // A file dropped anywhere on the page is picked instead of the browser navigating to it.
+  // The video card (empty or with a file chosen) highlights as the drop target.
+  let depth = 0;
+  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes("Files");
+  const onEnter = (e) => { if (!hasFiles(e)) return; depth++; box.classList.add("cv-dropping"); };
+  const onLeaveDrag = () => { depth = Math.max(0, depth - 1); if (!depth) box.classList.remove("cv-dropping"); };
+  const onOver = (e) => { if (hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = state.submitting ? "none" : "copy"; } };
+  const onDrop = (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    depth = 0; box.classList.remove("cv-dropping");
+    if (!state.submitting) pick(e.dataTransfer.files[0]);
+  };
+  window.addEventListener("dragenter", onEnter);
+  window.addEventListener("dragleave", onLeaveDrag);
+  window.addEventListener("dragover", onOver);
+  window.addEventListener("drop", onDrop);
+  onLeave(() => {
+    window.removeEventListener("dragenter", onEnter);
+    window.removeEventListener("dragleave", onLeaveDrag);
+    window.removeEventListener("dragover", onOver);
+    window.removeEventListener("drop", onDrop);
+    if (state.info?.url) URL.revokeObjectURL(state.info.url);
+  });
   const renderPicked = () => {
     const { file, info } = state;
     const mb = file.size >= 1048576 ? `${(file.size / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(file.size / 1024))} KB`;
@@ -89,7 +111,7 @@ export async function viewNew() {
         <video src="${info.url}#t=0.5" muted playsinline preload="metadata" aria-hidden="true"></video>
         <div>${bad ? `<span class="cv-flag danger">${esc(badge)}</span>` : `<span class="cv-flag ok">Ready to upload</span>`}
           <b>${esc(file.name)}</b><span class="hint">${esc(meta)}${dur ? "" : " · length is checked on upload"}</span>
-          ${bad ? "" : `<button type="button" class="cv-link" id="another">Choose another video</button>`}</div></div>
+          ${bad ? "" : `<button type="button" class="cv-link" id="another">Choose another video</button><span class="hint">or drop another file here</span>`}</div></div>
       ${bad ? `<div class="cv-c1">
         <h3>${tooLong ? "This video is too long" : tooShort ? "This video is too short" : "This file is too large"}</h3>
         <p class="hint">${tooBig && !tooLong && !tooShort ? `AdLoom accepts files up to ${MAX_MB} MB. Export a shorter or smaller clip.` : `AdLoom works with clips between ${MIN_S} and ${MAX_S} seconds so every ad stays short and focused. ${tooLong ? "Trim it in your camera app, or record a shorter clip of just the product in action." : "Record a few more seconds of the product in action."}`}</p>
@@ -102,7 +124,7 @@ export async function viewNew() {
     document.getElementById("submit").disabled = bad;
   };
   async function pick(file) {
-    if (!file) return;
+    if (!file || state.submitting) return;
     if (state.info?.url) URL.revokeObjectURL(state.info.url);
     state.file = file;
     state.info = await probe(file);
@@ -136,21 +158,25 @@ function upload(data, onProgress) {
 
 async function submitJob(form, state) {
   const errorBox = document.getElementById("formError"), button = document.getElementById("submit");
-  const fail = (msg) => { errorBox.innerHTML = `<div class="note pink">${esc(msg)}</div>`; };
+  if (state.submitting) return;
+  state.submitting = true;
+  button.disabled = true;
+  const fail = (msg) => { errorBox.innerHTML = `<div class="note pink">${esc(msg)}</div>`; state.submitting = false; button.disabled = !state.ok; };
   errorBox.innerHTML = "";
   if (!state.file) return fail("Choose a video first.");
   if (!state.ok) return fail(`Choose a video between ${MIN_S} and ${MAX_S} seconds.`);
   const text = form.note.value.trim();
   if (state.mode === "text" && !text) { form.note.focus(); return fail("Write one line about this ad, or switch to Say it."); }
   if (state.mode === "voice" && !state.audio) return fail("Record your description or attach an audio file first.");
-  if (!form.reportValidity()) return;
-
+  if (!form.region.value.trim()) { form.region.focus(); return fail("Enter the area this ad is for."); }
+  if (!form.reportValidity()) { state.submitting = false; button.disabled = false; return; }
   const data = new FormData();
   data.append("video", state.file, state.file.name);
   if (state.mode === "text") data.append("note", text);
   else data.append("note_audio", state.audio, state.audio.name);
   data.append("region", form.region.value.trim());
   data.append("budget", form.budget.value);
+  data.append("language", state.language);
   if (form.destination.value.trim()) data.append("destination", form.destination.value.trim());
 
   const before = new Set((await api("/api/jobs").catch(() => [])).map((j) => j.job_id));
@@ -164,7 +190,6 @@ async function submitJob(form, state) {
       ${stepList(step)}<p class="hint">You can keep using AdLoom. The job keeps running and shows up in Jobs.</p>`;
   };
   let uploaded = 0, current = null;
-  button.disabled = true;
   button.innerHTML = `<span class="spinner"></span> Making 6 ads`;
   form.querySelectorAll("input,textarea,.chip").forEach((el) => el.disabled = true);
   making(null, 0);
@@ -176,15 +201,18 @@ async function submitJob(form, state) {
   try {
     const job = await upload(data, (p) => { uploaded = p; making(current, p); });
     stop();
+    refreshBell();
     if (!onRoute(hash)()) { toast(needsNote(job) ? "Check the description we heard" : "Six videos are ready to review"); return; }
     if (needsNote(job)) toast(job.state === "FAILED" ? "We couldn't turn the recording into text. Type it instead." : "Check the description we heard");
     else if (job.state === "AWAITING_APPROVAL") toast("Six videos are ready to review");
     location.hash = `#/jobs/${job.job_id}`;
   } catch (err) {
     stop();
-    const jobs = await api("/api/jobs").catch(() => []);
+    const jobs = await api("/api/jobs", { global: true }).catch(() => []);
     const failed = jobs.find((j) => !before.has(j.job_id));
     if (!onRoute(hash)()) { toast(errorText(err), true); return; }
+    state.submitting = false;
+    refreshBell();
     form.querySelectorAll("input,textarea,.chip").forEach((el) => el.disabled = false);
     button.textContent = "Make 6 ads";
     if (failed && failed.state === "FAILED") {

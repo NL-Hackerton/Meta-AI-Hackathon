@@ -1,6 +1,10 @@
-import { app, esc, won, short, when, MAKING, stateBadge, PHASE, resourceName, api, toast, errorText, setNav, head, stepList } from "../core.js";
-import { ASPECTS, activeStep, isRunning, needsNote, failureCard, wireResume, stopForm, wireStop, unresolved, poll, onRoute, actorName, rememberActor } from "../flow.js";
+import { app, esc, won, short, when, MAKING, stateBadge, PHASE, resourceName, api, toast, errorText, setNav, head, stepList, onLeave } from "../core.js";
+import { ASPECTS, activeStep, isRunning, isInterrupted, needsNote, failureCard, wireResume, stopForm, wireStop, unresolved, poll, onRoute, actorName, rememberActor, actorError, checkActor, serverBusy, busyNote, holdWhileBusy } from "../flow.js";
+import { refreshBell } from "../notify.js";
 import { sourcePanel, mountSource } from "../tracking.js";
+
+/** Controls that change a job; locked while the server runs a command for another job. */
+const ACTIONS = "#approve button.coral, #openSheet, #publish, [data-suggest], #useNote, [data-resume-job], a[data-edit]";
 
 const EDITABLE = ["AWAITING_APPROVAL", "APPROVED"];
 const FIELD_LABEL = { primary_text: "Primary text", headline: "Headline", "hook:a": "Hook A", "hook:b": "Hook B", "hook:c": "Hook C (unused)" };
@@ -21,7 +25,7 @@ const PUBLISH_PLAN = [
 
 const crumb = (d) => {
   const u = d.snapshot?.understanding, job = d.job;
-  return `<a href="#/jobs">Jobs</a> / ${esc(u?.product_name || "New video")} · job ${esc(job.job_id.slice(0, 6))} · revision ${job.revision}`;
+  return `<a href="#/jobs">Jobs</a> / ${esc(u?.product_name || "Untitled video")} · job ${esc(job.job_id.slice(0, 6))} · revision ${job.revision}`;
 };
 const flowStrip = (at) => `<ol class="cv-flow" aria-label="Progress">${["Source", "Review six videos", "Approve · publish paused"].map((t, i) =>
   `<li class="${i < at ? "done" : i === at ? "now" : ""}"${i === at ? ` aria-current="step"` : ""}><b>${i + 1}</b> ${t}</li>`).join("")}</ol>`;
@@ -29,42 +33,60 @@ const flowStrip = (at) => `<ol class="cv-flow" aria-label="Progress">${["Source"
 export async function viewJob(jobId) {
   setNav("jobs");
   const hash = location.hash;
-  const d = await api(`/api/jobs/${jobId}`);
+  const [d, busy] = await Promise.all([api(`/api/jobs/${jobId}`), serverBusy()]);
   const job = d.job;
-  const rerender = () => { if (onRoute(hash)()) viewJob(jobId); };
-  if (needsNote(job)) return renderNote(d, hash);
-  if (job.state !== "FAILED" && (MAKING.includes(job.state) || (isRunning(job) && job.pending_stage !== "publish"))) return renderMaking(d, hash, rerender);
-  if (job.state === "FAILED" && job.failed_stage !== "publish") return renderFailed(d, hash, rerender);
-  return renderReview(d, hash, rerender);
+  // After approve/publish the decision card changes; bring it into view so the result is seen.
+  const rerender = (reveal = false) => {
+    if (!onRoute(hash)()) return;
+    viewJob(jobId).then(() => {
+      if (!reveal) return;
+      const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+      document.getElementById("panel")?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "center" });
+    });
+  };
+  // Another job holds the server: lock this job's actions until it finishes.
+  const locked = busy && !isRunning(job);
+  const lock = () => { if (locked) holdWhileBusy(app, ACTIONS, rerender); };
+  const note = locked ? busyNote() : "";
+  if (needsNote(job)) { renderNote(d, hash, note); return lock(); }
+  if (job.state !== "FAILED" && (MAKING.includes(job.state) || (isRunning(job) && job.pending_stage !== "publish"))) { renderMaking(d, hash, rerender, note); return lock(); }
+  if (job.state === "FAILED" && job.failed_stage !== "publish") { renderFailed(d, rerender, note); return lock(); }
+  renderReview(d, hash, rerender, note);
+  lock();
 }
 
 /* C2/C3 · confirm what you said */
-function renderNote(d, hash) {
+function renderNote(d, hash, note) {
   const job = d.job, failed = job.state === "FAILED";
   const proposal = d.note_proposal || "";
   app.innerHTML = head(crumb(d), failed ? "Type what the video is about" : "Is this what you said?",
       failed ? "We could not turn your recording into text. Type the one-line description instead; nothing you said is used." : "Edit anything that is off. Only this confirmed text is used to write your ads.",
-      `<span class="badge b-warn">Check description</span>`) +
-    `<div class="grid2"><form class="stack" id="noteForm">
+      `<span class="badge b-warn">Check description</span>`) + note +
+    `<div class="grid2"><form class="stack" id="noteForm" novalidate>
         <div class="card stack">
           ${failed ? `<div class="note pink">${esc(job.error?.code || "")}<p>${esc(job.error?.detail || "Transcription failed.")}</p></div>` : `<h2 style="margin:0">What we heard</h2>`}
           <label class="field">${failed ? "One-line description" : "Your description, as text"}
             <textarea class="input cv-said" name="text" maxlength="200" required placeholder="What you sell, where, and what makes it worth a call">${esc(proposal)}</textarea>
             <span class="counter" data-count>${proposal.length} / 200 characters</span></label>
+          <span class="cv-inline-err" data-text-error role="alert" hidden>Write the description. Spaces alone are not a description.</span>
           <div class="note violet cv-why"><span class="cv-tag violet">Why</span> Prices, discounts and guarantees are only used if you typed or confirmed them here.</div>
         </div>
         <button class="btn coral wide" id="useNote">Use this description</button>
-        <a class="btn light wide" href="#/new">Start over with a new recording</a>
+        <a class="btn light wide" href="#/new">New job</a>
       </form>
       <div class="stack"><div id="noteProgress" class="card"><h2>What happens next</h2>${stepList(-1)}</div>${sourcePanel(d, { title: "Your video", stats: false })}</div></div>`;
   mountSource(app, d);
   const form = document.getElementById("noteForm"), area = form.text, count = form.querySelector("[data-count]");
-  area.oninput = () => { count.textContent = `${area.value.length} / 200 characters`; count.classList.toggle("over", area.value.length > 200); };
+  const textError = form.querySelector("[data-text-error]");
+  area.oninput = () => { count.textContent = `${area.value.length} / 200 characters`; count.classList.toggle("over", area.value.length > 200); textError.hidden = true; };
   form.onsubmit = async (event) => {
     event.preventDefault();
+    const button = document.getElementById("useNote");
+    if (button.disabled) return;
     const text = area.value.trim();
-    if (!text) { area.focus(); toast("Write at least a few words.", true); return; }
-    const button = document.getElementById("useNote"), box = document.getElementById("noteProgress");
+    if (!text) { textError.hidden = false; area.setAttribute("aria-invalid", "true"); area.focus(); return; }
+    area.removeAttribute("aria-invalid");
+    const box = document.getElementById("noteProgress");
     button.disabled = true; area.disabled = true;
     button.innerHTML = `<span class="spinner"></span> Making 6 ads`;
     box.innerHTML = `<div class="cv-title"><h2>Making your ads</h2><span class="badge b-progress">Making</span></div>${stepList(0)}`;
@@ -77,35 +99,37 @@ function renderNote(d, hash) {
       toast("Six videos are ready to review");
     } catch (err) { toast(errorText(err), true); }
     stop();
+    refreshBell();
     if (onRoute(hash)()) viewJob(job.job_id);
   };
 }
 
-/* 03 · Making */
-function renderMaking(d, hash, rerender) {
-  const job = d.job, running = isRunning(job);
-  app.innerHTML = head(crumb(d), "Making your ads", "Following the product and reframing to 3 ratios. You can leave this page; the job keeps running.",
-      `<span class="badge b-progress">${running ? "Making" : "Paused"}</span>`) + flowStrip(0) +
+/* 03 · Making. RUNNING polls; INTERRUPTED (a crashed run) offers resume; IDLE waits for the run to start. */
+function renderMaking(d, hash, rerender, note) {
+  const job = d.job, running = isRunning(job), interrupted = isInterrupted(job);
+  const badge = running ? `<span class="badge b-progress">Making</span>` : interrupted ? `<span class="badge b-danger">Stopped</span>` : `<span class="badge b-paused">Waiting to start</span>`;
+  app.innerHTML = head(crumb(d), "Making your ads", "Following the product and reframing to 3 ratios. You can leave this page; the job keeps running.", badge) + note + flowStrip(0) +
     `<div class="grid2"><div class="stack">${sourcePanel(d)}</div><div class="stack">
        <div class="card"><h2>Steps</h2>${stepList(activeStep(job))}
-         ${running ? "" : `<p class="hint">This run stopped before finishing. Finished steps are saved.</p><button class="btn wide" data-resume-job="${esc(job.job_id)}">Resume</button>`}</div>
+         ${interrupted ? `<p class="hint">The run stopped before finishing, for example because AdLoom was closed. Finished steps are saved.</p><button class="btn wide" data-resume-job="${esc(job.job_id)}">Resume</button>`
+           : running ? "" : `<p class="hint">This job is queued and starts on its own.</p>`}</div>
        <div class="note violet">The dashed box is the product. Missed frames are filled in; weak tracking falls back to a center crop, and we tell you.</div>
      </div></div>`;
   mountSource(app, d);
   wireResume(app, rerender);
-  if (running) {
-    const seen = `${job.state}|${job.pending_stage}|${job.manifest_seq}`;
+  if (!interrupted) {
+    const seen = `${job.state}|${job.run_state}|${job.pending_stage}|${job.manifest_seq}`;
     const stop = poll(async () => {
       const now = (await api(`/api/jobs/${job.job_id}`)).job;
-      if (`${now.state}|${now.pending_stage}|${now.manifest_seq}` !== seen) { stop(); rerender(); }
+      if (`${now.state}|${now.run_state}|${now.pending_stage}|${now.manifest_seq}` !== seen) { stop(); refreshBell(); rerender(); }
     }, 1200, onRoute(hash));
   }
 }
 
 /* C4 · a making step failed */
-function renderFailed(d, hash, rerender) {
+function renderFailed(d, rerender, note) {
   app.innerHTML = head(crumb(d), "We stopped at one step", "Your upload and finished steps are saved. Resume picks up from the failed step.", `<span class="badge b-danger">Needs attention</span>`) +
-    flowStrip(0) + `<div class="grid2"><div class="stack">${sourcePanel(d)}</div><div class="stack">${failureCard(d.job)}</div></div>`;
+    note + flowStrip(0) + `<div class="grid2"><div class="stack">${sourcePanel(d)}</div><div class="stack">${failureCard(d.job)}</div></div>`;
   mountSource(app, d);
   wireResume(app, rerender);
 }
@@ -138,7 +162,7 @@ function copyCard(d) {
   if (!u) return "";
   const hooks = d.snapshot.render_plan?.hooks || u.hook_candidates.slice(0, 2);
   const editable = EDITABLE.includes(d.job.state);
-  return `<div class="card copy cv-copy"><div class="cv-title"><h2>Ad copy</h2>${editable ? `<a class="cv-link" href="#/jobs/${esc(d.job.job_id)}/edit">Edit</a>` : ""}</div><dl class="kv">
+  return `<div class="card copy cv-copy"><div class="cv-title"><h2>Ad copy</h2>${editable ? `<a class="cv-link" data-edit href="#/jobs/${esc(d.job.job_id)}/edit">Edit</a>` : ""}</div><dl class="kv">
       ${hooks.map((h) => `<dt>Hook ${esc(h.id.toUpperCase())}</dt><dd>${esc(h.text)}</dd>`).join("")}
       <dt>Headline</dt><dd>${esc(u.headline)}</dd><dt>Primary text</dt><dd>${esc(u.primary_text)}</dd>
       <dt>Button</dt><dd>${esc((plan?.cta || u.cta).replaceAll("_", " ").toLowerCase())}</dd></dl></div>`;
@@ -165,7 +189,7 @@ function cropNote(d) {
   return `<div class="card cv-c5"><div class="cv-title"><h2>Ready, with one note</h2><span class="cv-flag danger">Center crop</span></div>
       <p class="hint">The product was found in only ${Math.round(t.coverage * 100)}% of frames, so ${esc(fallback.join(", "))} use${fallback.length === 1 ? "s" : ""} a steady center crop instead of following it.</p>
       <p class="hint">Want it to follow the product? Tell AdLoom what to follow, or re-shoot with the product closer to the camera.</p>
-      ${editable ? `<a class="btn light wide" href="#/jobs/${esc(d.job.job_id)}/edit" data-focus-product>Pick the product</a>` : ""}</div>`;
+      ${editable ? `<a class="btn light wide" data-edit href="#/jobs/${esc(d.job.job_id)}/edit" data-focus-product>Pick the product</a>` : ""}</div>`;
 }
 
 /** D4 · approval blocked by flagged phrases. */
@@ -177,7 +201,7 @@ function blockedCard(d) {
       <p class="hint">Approval stays locked until the flagged text is changed.</p>
       ${flags.map((f, i) => `<div class="cv-fix"><b>${esc(FIELD_LABEL[f.field] || f.field)} · rule ${esc(f.rule_id)}</b>
           <div class="cv-fixbox"><s>${esc(f.original)}</s><span>→ ${esc(f.rewrite)}</span></div>
-          <div class="cv-actions">${FIELD_BODY[f.field] ? `<button type="button" class="btn small" data-suggest="${i}">Use suggestion</button>` : ""}<a class="btn light small" href="#/jobs/${esc(d.job.job_id)}/edit">Write my own</a></div></div>`).join("")}
+          <div class="cv-actions">${FIELD_BODY[f.field] ? `<button type="button" class="btn small" data-suggest="${i}">Use suggestion</button>` : ""}<a class="btn light small" data-edit href="#/jobs/${esc(d.job.job_id)}/edit">Write my own</a></div></div>`).join("")}
       <ul class="cv-checks">${fields.map((f) => `<li class="${count(f) ? "bad" : ""}">${esc(FIELD_LABEL[f])} · ${count(f) ? `${count(f)} issue${count(f) > 1 ? "s" : ""}` : "no issues"}</li>`).join("")}</ul>
       <button class="btn wide" disabled>Approve · locked until fixed</button></div>`;
 }
@@ -187,7 +211,7 @@ function approveCard(d) {
   const blockedByPolicy = (d.approval_issues || []).includes("policy_block");
   if (blockedByPolicy) return blockedCard(d);
   const blocked = (d.approval_issues || []).length > 0 || !!d.approval_error;
-  return `<div class="card cv-approve" id="approveCard" role="dialog" aria-modal="false" aria-labelledby="approveTitle">
+  return `<div class="card cv-approve" id="approveCard" aria-labelledby="approveTitle">
       <button type="button" class="cv-grab" data-close aria-label="Close"></button>
       <div class="cv-title"><h2 id="approveTitle">Approve these ads?</h2>${blocked ? `<span class="cv-flag danger">Blocked</span>` : `<span class="badge b-done">Ready</span>`}</div>
       <p class="hint">Ads are created exactly as below. Any later change needs a new approval.</p>
@@ -195,15 +219,17 @@ function approveCard(d) {
         <dt>Ads</dt><dd>2 × 9:16 (Hook A, B)</dd>
         <dt>Status</dt><dd style="color:var(--coral-deep)">Paused · never auto-activated</dd>
         <dt>Daily budget</dt><dd>${won(brief.daily_budget_krw)} · 1 ad set</dd>
-        <dt>Audience</dt><dd>South Korea · ${esc(brief.region)} noted</dd>
+        <dt>Audience</dt><dd>All of South Korea<small class="hint" style="display:block">${esc(brief.region)} is kept as a note, not used for targeting</small></dd>
         <dt>Landing</dt><dd>${esc(brief.destination_url || "Page only")}</dd>
         <dt>Other 4</dt><dd>4:5 and 1:1 are download-only</dd>
         <dt>Fingerprint</dt><dd class="mono">sha256 ${short(d.content_digest)}</dd>
       </dl>
-      <form id="approve" class="stack" style="gap:12px;margin-top:12px">
+      <form id="approve" class="stack" style="gap:12px;margin-top:12px" novalidate>
         <label class="field">Approved by<input class="input" name="actor" required maxlength="80" autocomplete="name" value="${esc(actorName())}" placeholder="Your name"></label>
+        ${actorError}
         <label class="check"><input type="checkbox" name="seen" required>I reviewed all 6 videos and the copy, and it is true for my business.</label>
-        <div class="cv-actions"><button class="btn coral" style="flex:1" ${blocked ? "disabled" : ""}>Approve revision ${job.revision}</button><a class="btn light" href="#/jobs/${esc(job.job_id)}/edit">Edit</a></div>
+        <span class="cv-inline-err" data-seen-error role="alert" hidden>Confirm you reviewed the videos and copy.</span>
+        <div class="cv-actions"><button class="btn coral" style="flex:1" ${blocked ? "disabled" : ""}>Approve revision ${job.revision}</button><a class="btn light" data-edit href="#/jobs/${esc(job.job_id)}/edit">Edit</a></div>
         <p class="hint" style="margin:0">Approval stores fingerprints of the reviewed videos and copy. If files change, publishing stops.</p>
       </form></div>`;
 }
@@ -213,7 +239,7 @@ function approvedCard(d) {
   return `<div class="card"><div class="cv-title"><h2>Approved</h2><span class="badge b-progress">revision ${job.revision}</span></div>
       <dl class="kv"><dt>By</dt><dd>${esc(a?.actor || "—")} · ${esc(a?.channel || "web")}</dd><dt>At</dt><dd>${a ? when(a.approved_at) : "—"}</dd><dt>Fingerprint</dt><dd class="mono">${short(a?.content_digest)}</dd></dl>
       <p class="hint">Publishing re-checks this fingerprint. Editing anything clears the approval.</p>
-      <div class="cv-actions"><button class="btn coral" style="flex:1" id="publish">Create 2 paused ads</button><a class="btn light" href="#/jobs/${esc(job.job_id)}/edit">Edit</a></div></div>`;
+      <div class="cv-actions"><button class="btn coral" style="flex:1" id="publish">Create 2 paused ads</button><a class="btn light" data-edit href="#/jobs/${esc(job.job_id)}/edit">Edit</a></div></div>`;
 }
 
 /** Ordered request journal for the job's current revision. */
@@ -255,7 +281,7 @@ function publishFailedCard(d) {
     return `<div class="card"><div class="cv-title"><h2>Publishing stopped</h2><span class="badge b-paused">Abandoned</span></div>
         <p class="hint">${esc(by || "The owner")} stopped the attempt for ${stopped.map((o) => esc(resourceName(o).toLowerCase())).join(", ")}. This job can no longer publish; anything already created stays paused.</p>
         ${journal(d, false)}
-        <a class="btn coral wide" href="#/new">Start a new job</a></div>`;
+        <a class="btn coral wide" href="#/new">New job</a></div>`;
   }
   return `<div class="card"><div class="cv-title"><h2>Publishing stopped</h2><span class="cv-flag danger">Needs attention</span></div>
       <div class="note pink">${esc(job.error?.code || "")}<p>${esc(job.error?.detail || "")}</p></div>
@@ -288,11 +314,11 @@ function journalTable(d) {
     return `<tr><td class="mono hide-sm">${esc(o.operation_key)}</td><td>${esc(resourceName(o))}</td><td><span class="badge ${cls}">${label}</span></td><td class="mono">${esc(o.remote_id || (o.abandoned ? `by ${o.resolution_actor}` : "—"))}</td></tr>`;
   }).join("");
   return `<div class="card cv-jtable"><div class="cv-title"><h2>Publish journal</h2><span class="hint">UNKNOWN requests are never re-sent automatically</span></div>
-      <table><thead><tr><th class="hide-sm">Operation key</th><th>Resource</th><th>Phase</th><th>Remote ID</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      <div class="cv-table-wrap"><table class="cv-wraptable"><thead><tr><th class="hide-sm">Operation key</th><th>Resource</th><th>Phase</th><th>Remote ID</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
 /* 04 Review · 05 Approve sheet · D4–D6 · 06 Published */
-function renderReview(d, hash, rerender) {
+function renderReview(d, hash, rerender, note) {
   const job = d.job;
   const publishing = isRunning(job) && job.pending_stage === "publish";
   let panel, step = 1, title = "Review & approve";
@@ -306,7 +332,7 @@ function renderReview(d, hash, rerender) {
 
   const blockedBadge = job.state === "AWAITING_APPROVAL" && (d.approval_issues || []).length > 0;
   app.innerHTML = head(crumb(d), title, sub, blockedBadge ? `<span class="badge b-danger">Blocked</span>` : stateBadge(job.state)) +
-    flowStrip(step) +
+    note + flowStrip(step) +
     `<div class="grid2 cv-review"><div class="stack">
         <div class="cv-o-source">${sourcePanel(d)}</div>
         <div class="cv-o-variants">${variantsCard(d)}</div>
@@ -316,7 +342,7 @@ function renderReview(d, hash, rerender) {
         <div class="cv-o-warn">${warningsNote(d)}${cropNote(d)}</div>
       </div></div>
       ${journalTable(d)}
-      ${sheet ? `<div class="cv-mbar"><button class="btn coral wide" id="openSheet">Approve as is</button><a class="btn light wide" href="#/jobs/${esc(job.job_id)}/edit">Edit copy or scenes</a></div><div class="cv-backdrop" data-close hidden></div>` : ""}`;
+      ${sheet ? `<div class="cv-mbar"><button class="btn coral wide" id="openSheet">Approve as is</button><a class="btn light wide" data-edit href="#/jobs/${esc(job.job_id)}/edit">Edit copy or scenes</a></div><div class="cv-backdrop" data-close hidden></div>` : ""}`;
   mountSource(app, d);
 
   app.querySelectorAll("[data-ratio]").forEach((chip) => chip.onclick = () => {
@@ -325,22 +351,33 @@ function renderReview(d, hash, rerender) {
   });
 
   const panelEl = document.getElementById("panel"), backdrop = app.querySelector(".cv-backdrop");
+  const card = panelEl.querySelector("#approveCard");
+  // The approve card is a modal dialog only while it is the open mobile sheet.
   const setSheet = (open) => {
     panelEl.classList.toggle("open", open);
+    if (card) {
+      if (open) { card.setAttribute("role", "dialog"); card.setAttribute("aria-modal", "true"); }
+      else { card.removeAttribute("role"); card.removeAttribute("aria-modal"); }
+    }
     if (backdrop) backdrop.hidden = !open;
     document.body.classList.toggle("cv-locked", open);
     if (open) panelEl.querySelector("input[name=actor]")?.focus();
   };
   document.getElementById("openSheet")?.addEventListener("click", () => setSheet(true));
   app.querySelectorAll("[data-close]").forEach((el) => el.addEventListener("click", () => setSheet(false)));
-  window.addEventListener("hashchange", () => document.body.classList.remove("cv-locked"), { once: true });
+  onLeave(() => document.body.classList.remove("cv-locked"));
   panelEl.addEventListener("keydown", (e) => { if (e.key === "Escape") setSheet(false); });
 
   const form = document.getElementById("approve");
   if (form) form.onsubmit = async (event) => {
     event.preventDefault();
-    if (!form.reportValidity()) return;
-    const button = form.querySelector("button.coral"), actor = form.actor.value.trim();
+    const button = form.querySelector("button.coral");
+    if (button.disabled) return;
+    const actor = checkActor(form);
+    if (!actor) return;
+    const seenError = form.querySelector("[data-seen-error]");
+    seenError.hidden = form.seen.checked;
+    if (!form.seen.checked) { form.seen.focus(); return; }
     button.disabled = true;
     button.innerHTML = `<span class="spinner"></span> Approving`;
     try {
@@ -348,7 +385,8 @@ function renderReview(d, hash, rerender) {
       rememberActor(actor);
       setSheet(false);
       toast(`Approved revision ${job.revision}`);
-      rerender();
+      refreshBell();
+      rerender(true);
     } catch (err) { toast(errorText(err), true); button.disabled = false; button.textContent = `Approve revision ${job.revision}`; }
   };
 
@@ -360,6 +398,7 @@ function renderReview(d, hash, rerender) {
       await api(`/api/jobs/${job.job_id}/edit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [FIELD_BODY[flag.field]]: flag.rewrite }) });
       toast("Suggestion applied as a new revision");
     } catch (err) { toast(errorText(err), true); }
+    refreshBell();
     rerender();
   });
 
@@ -375,7 +414,8 @@ function renderReview(d, hash, rerender) {
     try { await api(`/api/jobs/${job.job_id}/publish`, { method: "POST" }); toast("Created 2 paused ads"); }
     catch (err) { toast(errorText(err), true); }
     stop();
-    rerender();
+    refreshBell();
+    rerender(true);
   };
 
   wireStop(app, rerender);
@@ -383,7 +423,7 @@ function renderReview(d, hash, rerender) {
   if (publishing) {
     const stop = poll(async () => {
       const now = await api(`/api/jobs/${job.job_id}`);
-      if (!isRunning(now.job)) { stop(); rerender(); } else panelEl.innerHTML = publishingCard(now);
+      if (!isRunning(now.job)) { stop(); refreshBell(); rerender(); } else panelEl.innerHTML = publishingCard(now);
     }, 800, onRoute(hash));
   }
 }

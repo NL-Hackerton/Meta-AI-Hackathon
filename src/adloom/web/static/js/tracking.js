@@ -1,6 +1,6 @@
 "use strict";
 // Source video with the tracked product box and the three crop frames drawn per frame.
-import { esc } from "./core.js";
+import { esc, onLeave } from "./core.js";
 import { ASPECTS, clock } from "./flow.js";
 
 export const CROP_COLORS = { "9:16": "#FF4F7B", "4:5": "#3D7BFF", "1:1": "#A994FF" };
@@ -113,7 +113,9 @@ export function mountSource(root, d) {
     video.addEventListener("play", () => requestAnimationFrame(loop));
   }
   ["loadeddata", "seeked", "timeupdate"].forEach((name) => video.addEventListener(name, () => draw(video.currentTime)));
-  new ResizeObserver(resize).observe(stage);
+  const observer = new ResizeObserver(resize);
+  observer.observe(stage);
+  onLeave(() => { observer.disconnect(); video.pause(); });
   if (strip && duration) strip.onclick = (event) => {
     const box = strip.getBoundingClientRect();
     video.currentTime = Math.max(0, Math.min(1, (event.clientX - box.left) / box.width)) * duration / 1e6;

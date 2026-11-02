@@ -6,7 +6,7 @@ approval digest checks and PAUSED-only publishing.
 
 import os
 from pathlib import Path, PurePosixPath
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
@@ -143,8 +143,16 @@ def _notification(
     if head.state == "CREATED" and head.note_status == "REVIEW_REQUIRED":
         kind, title, detail = (
             "note_review",
-            "Confirm what you said",
+            "Check what you said",
             "Check the transcript of your voice note before we make the ads.",
+        )
+    elif (
+        head.state == "FAILED" and head.failed_stage == "input" and head.note_status != "CONFIRMED"
+    ):
+        kind, title, detail = (
+            "note_review",
+            "Type what the video is about",
+            "We could not read your voice note. Type a short description to continue.",
         )
     elif head.state == "AWAITING_APPROVAL":
         kind, title, detail = (
@@ -245,6 +253,7 @@ def create_app(settings: Settings, allowed_hosts: tuple[str, ...] = LOOPBACK_HOS
                 "permissions": list(META_PERMISSIONS),
             },
             "model_api": {"key_present": bool(os.environ.get("MODEL_API_KEY"))},
+            "busy": store.busy(),
         }
 
     @app.get("/api/profile")
@@ -256,10 +265,17 @@ def create_app(settings: Settings, allowed_hosts: tuple[str, ...] = LOOPBACK_HOS
     def put_profile(body: Profile) -> dict[str, object]:
         return {"profile": save_profile(store.root, body).model_dump(mode="json")}
 
-    def summary(job_id: str) -> dict[str, object]:
+    def observed(head: JobManifest, busy: bool) -> dict[str, object]:
+        # A RUNNING head without a lock holder was left by a process that stopped mid-run.
+        value = head.model_dump(mode="json")
+        if head.run_state in {"RUNNING", "CANCEL_REQUESTED"} and not busy:
+            value["run_state"] = "INTERRUPTED"
+        return value
+
+    def summary(job_id: str, busy: bool) -> dict[str, object]:
         head = store.load(job_id)
         result: dict[str, object] = {
-            **head.model_dump(mode="json"),
+            **observed(head, busy),
             "product_name": None,
             "hooks": [],
             "published_ads": [],
@@ -301,21 +317,29 @@ def create_app(settings: Settings, allowed_hosts: tuple[str, ...] = LOOPBACK_HOS
 
     @app.get("/api/jobs")
     def jobs() -> list[dict[str, object]]:
-        items = [summary(job_id) for job_id in job_ids()]
+        busy = store.busy()
+        items: list[dict[str, object]] = []
+        for job_id in job_ids():
+            try:
+                items.append(summary(job_id, busy))
+            except FileNotFoundError:
+                continue  # deleted while listing
         return sorted(items, key=lambda item: str(item["created_at"]), reverse=True)
 
     @app.get("/api/notifications")
     def notifications() -> list[dict[str, object]]:
         found: list[dict[str, object]] = []
         for job_id in job_ids():
-            head = store.load(job_id)
             product: str | None = None
             try:
+                head = store.load(job_id)
+                unknown = any(unresolved(operation) for operation in operations(store, job_id))
                 understanding = store.snapshot(head).understanding
                 product = understanding.product_name if understanding is not None else None
+            except FileNotFoundError:
+                continue  # deleted while listing
             except AdLoomError:
                 pass
-            unknown = any(unresolved(operation) for operation in operations(store, job_id))
             item = _notification(head, product, unknown)
             if item is not None:
                 found.append(item)
@@ -329,6 +353,7 @@ def create_app(settings: Settings, allowed_hosts: tuple[str, ...] = LOOPBACK_HOS
         note: Annotated[str | None, Form()] = None,
         note_audio: Annotated[UploadFile | None, File()] = None,
         destination: Annotated[str | None, Form()] = None,
+        language: Annotated[Literal["ko", "en"], Form()] = "ko",
     ) -> dict[str, object]:
         suffix = PurePosixPath(video.filename or "").suffix.lower()
         if suffix not in {".mp4", ".mov"}:
@@ -355,7 +380,16 @@ def create_app(settings: Settings, allowed_hosts: tuple[str, ...] = LOOPBACK_HOS
             if note_audio is not None and audio is not None:
                 await _save_upload(note_audio, audio, MAX_AUDIO_BYTES, "Explanation audio")
             head = await run_in_threadpool(
-                run_file, settings, target, note, region, budget, audio, destination or None, job_id
+                run_file,
+                settings,
+                target,
+                note,
+                region,
+                budget,
+                audio,
+                destination or None,
+                job_id,
+                language,
             )
         except AdLoomError:
             # An audio-only job whose transcript failed waits for the owner to type the note.
@@ -375,6 +409,7 @@ def create_app(settings: Settings, allowed_hosts: tuple[str, ...] = LOOPBACK_HOS
         result = inspect_job(settings, job_id)
         head = store.load(job_id)
         snapshot = store.snapshot(head)
+        result["job"] = observed(head, store.busy())
         result["source_url"] = (
             _file_url(job_id, SOURCE_VIDEO) if store.path(job_id, SOURCE_VIDEO).is_file() else None
         )

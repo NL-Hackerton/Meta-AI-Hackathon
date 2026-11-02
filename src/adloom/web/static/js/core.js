@@ -19,10 +19,60 @@ export const PHASE = { CONFIRMED: ["Confirmed", "b-done"], PREPARED: ["Unknown",
 export const RESOURCE = { campaign: "Campaign", adset: "Ad set", image: "Thumbnail", video: "Video", creative: "Creative", ad: "Ad" };
 export const resourceName = (op) => RESOURCE[op.resource_kind] + (op.hook_id ? ` · Hook ${op.hook_id.toUpperCase()}` : "");
 
+// Navigation lifecycle. Each hash change starts a new navigation; work started by the
+// previous screen must not touch the new one.
+let navId = 0;
+let leaving = [];
+let routing = false;
+let after = [];
+/** Starts a navigation: runs the previous screen's cleanups and returns the new id. */
+export function beginNav() {
+  const cleanups = leaving;
+  leaving = [];
+  after = [];
+  routing = true;
+  for (const fn of cleanups) { try { fn(); } catch (_) { /* cleanup must not block navigation */ } }
+  // A toast belongs to the screen that raised it, unless it was raised to hand off to the
+  // next screen (e.g. "Approved" right before navigating), which happens within a moment.
+  const now = Date.now();
+  document.querySelectorAll(".toast").forEach((el) => { if (now - Number(el.dataset.at) > 400) el.remove(); });
+  return ++navId;
+}
+/** Ends a navigation once the new screen is interactive and runs its afterRender callbacks. */
+export function endNav() {
+  routing = false;
+  const fns = after;
+  after = [];
+  for (const fn of fns) { try { fn(); } catch (_) { /* a failed focus/scroll must not break the screen */ } }
+}
+export const currentNav = () => navId;
+/** Registers cleanup (stop timers, microphones, observers) for the current screen. */
+export function onLeave(fn) { leaving.push(fn); }
+/** Runs `fn` once the screen is interactive; focus and scroll targets for a new screen go here. */
+export function afterRender(fn) {
+  if (routing) after.push(fn);
+  else requestAnimationFrame(fn);
+}
+
+/**
+ * JSON request with the cross-site guard header. A response that arrives after the user has
+ * left the screen that asked for it never settles, so stale code cannot render over the new
+ * screen or show its toasts there. Pass `global: true` for work that outlives the screen.
+ */
 export async function api(path, options = {}) {
-  const headers = { ...(options.headers || {}), "X-AdLoom-Request": "1" };
-  const response = await fetch(path, { ...options, headers });
-  const body = await response.json().catch(() => ({}));
+  const { global = false, ...init } = options;
+  const started = navId;
+  const headers = { ...(init.headers || {}), "X-AdLoom-Request": "1" };
+  const stale = () => !global && started !== navId;
+  let response, body;
+  try {
+    response = await fetch(path, { ...init, headers });
+    body = await response.json().catch(() => ({}));
+  } catch (err) {
+    if (stale()) return new Promise(() => {});
+    throw err;
+  }
+  if (stale()) return new Promise(() => {});
   if (!response.ok) {
     const error = new Error(body.error?.detail || `Request failed (${response.status})`);
     error.code = body.error?.code;
@@ -34,14 +84,26 @@ export function toast(message, error = false) {
   document.querySelectorAll(".toast").forEach((old) => old.remove());
   const el = document.createElement("div");
   el.className = "toast" + (error ? " error" : "");
-  el.setAttribute("role", "status");
+  el.setAttribute("role", error ? "alert" : "status");
   el.textContent = message;
+  el.dataset.at = String(Date.now());
   document.body.append(el);
-  setTimeout(() => el.remove(), 4200);
+  setTimeout(() => el.remove(), error ? 6000 : 4200);
 }
-export function errorText(err) { return err.code ? `${err.code} · ${err.message}` : err.message; }
+const FRIENDLY = {
+  E_JOB_BUSY: "Another job is being made. Try again when it finishes.",
+};
+export function errorText(err) {
+  if (FRIENDLY[err.code]) return FRIENDLY[err.code];
+  return err.code ? `${err.code} · ${err.message}` : err.message;
+}
+/** Marks the current section in both navs. Mobile tabs also stand for related screens. */
 export function setNav(key) {
-  document.querySelectorAll("[data-nav]").forEach((a) => a.dataset.nav === key ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
+  document.querySelectorAll("[data-nav]").forEach((a) => {
+    const also = (a.dataset.also || "").split(" ").filter(Boolean);
+    if (key && (a.dataset.nav === key || also.includes(key))) a.setAttribute("aria-current", "page");
+    else a.removeAttribute("aria-current");
+  });
 }
 export function head(crumb, title, sub, action = "") {
   return `<div class="head"><div><div class="crumb">${crumb}</div><h1>${title}</h1><p class="sub">${sub}</p></div>${action}</div>`;

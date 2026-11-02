@@ -1,4 +1,4 @@
-import { app, esc, won, api, toast, errorText, setNav } from "../core.js";
+import { app, esc, won, api, toast, errorText, setNav, onLeave } from "../core.js";
 import { icon, progress } from "../library.js";
 
 /* A1 Welcome · web Landing */
@@ -19,7 +19,7 @@ export async function viewWelcome() {
           </ul>
           <div class="lv-actions">
             <a class="btn coral" href="#/me/profile">${profile ? "Edit business profile" : "Set up your business"}</a>
-            <a class="btn light" href="${profile ? "#/" : "#/new"}">${profile ? "Go to home" : "Try a video first"}</a>
+            ${profile ? `<a class="btn light" href="#/">Go to home</a>` : `<a class="btn light" href="#/new">Make ads from a video</a>`}
           </div>
         </div>
       </section>
@@ -37,6 +37,9 @@ export async function viewWelcome() {
 }
 
 const CATEGORIES = ["Home services", "Food", "Beauty", "Retail", "Repair"];
+
+// Set when the first profile is saved; the Meta screen then shows step 2 of 2 once.
+const ONBOARDING = "adloom.onboarding";
 
 function check(values) {
   const errors = {};
@@ -59,21 +62,21 @@ export async function viewProfile() {
   const p = profile || { business_name: "", category: "", region: "", daily_budget_krw: 10000, destination_url: null, language: "ko" };
   const field = (name, label, input, hint = "") => `<label class="field" for="pf-${name}">${label}${input}<span class="lv-err" id="err-${name}" role="alert"></span>${hint ? `<span class="hint">${hint}</span>` : ""}</label>`;
   app.innerHTML = `<div class="lv-onb">
-      <div class="lv-onb-top"><a class="lv-back" href="${profile ? "#/me" : "#/welcome"}" aria-label="Back"></a>${profile ? "" : progress(1, 3)}</div>
+      <div class="lv-onb-top"><a class="lv-back" href="${profile ? "#/me" : "#/welcome"}" aria-label="Back"></a>${profile ? "" : progress(1, 2)}</div>
       <h1>${profile ? "Business profile" : "Tell us about<br>your business"}</h1>
-      <p class="sub">Used for copy tone, the ad end card and the defaults for new jobs. You can change it anytime.</p>
+      <p class="sub">Your area, daily budget and booking link fill in each new job, and the language is sent with it for the ad copy. You can change it anytime.</p>
       <form class="card lv-form" id="profileForm" novalidate>
         ${field("business_name", "Business name", `<input class="input" id="pf-business_name" name="business_name" maxlength="60" autocomplete="organization" value="${esc(p.business_name)}" aria-describedby="err-business_name">`)}
         <div class="field"><span id="cat-label">What you do</span>
           <div class="chips" role="group" aria-labelledby="cat-label">${CATEGORIES.map((c) => `<button type="button" class="chip" data-cat="${esc(c)}" aria-pressed="${p.category === c}">${esc(c)}</button>`).join("")}</div>
           <input class="input" id="pf-category" name="category" maxlength="40" placeholder="Or type your own, e.g. Plumbing" value="${esc(p.category)}" aria-labelledby="cat-label" aria-describedby="err-category">
           <span class="lv-err" id="err-category" role="alert"></span></div>
-        ${field("region", "Service area", `<input class="input" id="pf-region" name="region" maxlength="60" value="${esc(p.region)}" aria-describedby="err-region">`, "Used for ad targeting notes and copy")}
+        ${field("region", "Service area", `<input class="input" id="pf-region" name="region" maxlength="60" value="${esc(p.region)}" aria-describedby="err-region">`, "Default area for new jobs")}
         <div class="lv-form2">
-          ${field("daily_budget_krw", "Daily budget (KRW)", `<input class="input" id="pf-daily_budget_krw" name="daily_budget_krw" type="number" inputmode="numeric" min="1000" step="1000" value="${esc(p.daily_budget_krw)}" aria-describedby="err-daily_budget_krw">`, "Per ad set · ads still start paused")}
-          ${field("language", "Copy language", `<select class="input" id="pf-language" name="language">${[["ko", "Korean"], ["en", "English"]].map(([v, l]) => `<option value="${v}" ${p.language === v ? "selected" : ""}>${l}</option>`).join("")}</select>`)}
+          ${field("daily_budget_krw", "Daily budget (KRW)", `<input class="input" id="pf-daily_budget_krw" name="daily_budget_krw" type="number" inputmode="numeric" min="1000" step="1" value="${esc(p.daily_budget_krw)}" aria-describedby="err-daily_budget_krw">`, "Default for new jobs · at least ₩1,000 · ads still start paused")}
+          ${field("language", "Copy language", `<select class="input" id="pf-language" name="language">${[["ko", "Korean"], ["en", "English"]].map(([v, l]) => `<option value="${v}" ${p.language === v ? "selected" : ""}>${l}</option>`).join("")}</select>`, "Sent with each new job for the ad copy")}
         </div>
-        ${field("destination_url", "Booking or website link", `<input class="input" id="pf-destination_url" name="destination_url" type="url" inputmode="url" placeholder="https://" value="${esc(p.destination_url || "")}" aria-describedby="err-destination_url">`, "Optional · where the Learn more button goes")}
+        ${field("destination_url", "Booking or website link", `<input class="input" id="pf-destination_url" name="destination_url" type="url" inputmode="url" placeholder="https://" value="${esc(p.destination_url || "")}" aria-describedby="err-destination_url">`, "Optional · default landing link for new jobs")}
         <p class="lv-err" id="err-form" role="alert"></p>
         <button class="btn coral wide" type="submit">${profile ? "Save" : "Continue"}</button>
       </form>
@@ -108,6 +111,7 @@ export async function viewProfile() {
     try {
       await api("/api/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) });
       toast("Business profile saved");
+      if (!profile) sessionStorage.setItem(ONBOARDING, "1");
       location.hash = profile ? "#/me" : "#/me/meta";
     } catch (err) {
       document.getElementById("err-form").textContent = errorText(err);
@@ -125,6 +129,8 @@ const PERMISSIONS = {
 export async function viewMeta() {
   setNav("me");
   const [{ profile }, status] = await Promise.all([api("/api/profile"), api("/api/status")]);
+  const onboarding = sessionStorage.getItem(ONBOARDING) === "1";
+  if (onboarding) onLeave(() => sessionStorage.removeItem(ONBOARDING));
   const meta = status.meta;
   const perms = meta.permissions.map((p) => {
     const [ic, title, detail] = PERMISSIONS[p] || ["lock", p, "Requested permission"];
@@ -132,7 +138,7 @@ export async function viewMeta() {
   }).join("");
   const locked = meta.connected ? "Not available in this build" : "Available after connecting";
   app.innerHTML = `<div class="lv-onb">
-      <div class="lv-onb-top"><a class="lv-back" href="${profile ? "#/me" : "#/me/profile"}" aria-label="Back"></a>${progress(2, 3)}</div>
+      <div class="lv-onb-top"><a class="lv-back" href="${onboarding ? "#/me/profile" : "#/me"}" aria-label="Back"></a>${onboarding ? progress(2, 2) : ""}</div>
       <h1>Connect your Meta<br>ad account</h1>
       <p class="sub">AdLoom creates campaigns, ad sets and ads for you — always paused. You turn them on yourself in Ads Manager.</p>
       <div class="lv-onb-grid">
