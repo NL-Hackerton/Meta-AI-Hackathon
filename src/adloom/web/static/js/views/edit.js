@@ -28,6 +28,7 @@ export async function viewEdit(jobId) {
   const duration = d.snapshot.media.duration_us;
   const moments = (d.moments || []).map((m) => ({ ...m }));
   const next = job.revision + 1;
+  const rejected = (d.claims || []).filter((c) => c.status === "rejected");
 
   const fieldError = (name) => `<span class="cv-inline-err" data-err-for="${name}" role="alert" hidden>This can't be empty or only spaces.</span>`;
   const field = ([name, label, max, flagKey], area = name === "primary_text") => {
@@ -59,7 +60,10 @@ export async function viewEdit(jobId) {
          <p class="hint" style="margin:0">${d.tracking ? `Found in ${Math.round(d.tracking.coverage * 100)}% of frames now. ` : ""}Name the object plainly, e.g. “gold square” or “faucet”. Changing it re-runs tracking.</p>
        </div>
      </div><div class="stack">
-       <div class="card stack"><div class="cv-title"><h2 style="margin:0">Copy</h2><button type="button" class="cv-link" id="reset">Reset</button></div>
+       <div class="card stack" id="copy"><div class="cv-title"><h2 style="margin:0">Copy</h2><button type="button" class="cv-link" id="reset">Reset</button></div>
+         ${rejected.length ? `<div class="cv-inflag cv-notrue" role="note"><b>You said ${rejected.length === 1 ? "this isn't" : "these aren't"} true</b>
+           <ul>${rejected.map((c) => `<li>“${esc(c.text)}”</li>`).join("")}</ul>
+           <span>Rewrite the hooks, headline or primary text so the ad no longer says ${rejected.length === 1 ? "it" : "them"}. Saving a copy change removes ${rejected.length === 1 ? "it" : "them"} from the claim check.</span></div>` : ""}
          ${COPY.map((c) => field(c)).join("")}
        </div>
        <div class="card cv-impact" id="impact"></div>
@@ -87,6 +91,7 @@ export async function viewEdit(jobId) {
   function update() {
     const c = changes(), any = Object.keys(c).length > 0;
     const hooksChanged = "hook_a" in c || "hook_b" in c, copyChanged = "headline" in c || "primary_text" in c;
+    const claimsGone = rejected.length && (hooksChanged || copyChanged);
     const usedUs = moments.filter((m) => m.selected).reduce((s, m) => s + m.end_us - m.start_us, 0);
     document.querySelector("[data-total]").textContent = `${clock(usedUs)} of ${clock(duration)} + 2 s end card`;
     const from = "product" in c ? "Tracking" : any ? "Assembly" : "—";
@@ -95,6 +100,7 @@ export async function viewEdit(jobId) {
         ${row("Ad text", copyChanged, "Rules re-checked · 6 videos re-assembled", "No change")}
         ${row("Scenes", "moments" in c, `Uses ${esc(spanText(moments))} · 6 videos re-assembled`, "No change")}
         ${row("Product", "product" in c, "Tracking, images & captions and 6 videos re-run", "Crops reuse saved tracks")}
+        ${rejected.length ? row("Not-true claims", claimsGone, `${rejected.length} removed from the claim check`, "Still block approval · change the copy") : ""}
         ${row("Starts from", any, from, "Nothing to re-run")}
         <dt>Approval</dt><dd style="color:var(--coral-deep)">${any ? "Cleared · approve again" : job.state === "APPROVED" ? "Kept until you save" : "Not approved yet"}</dd></dl>`;
     setSaves(!any || locked, any ? `Save as revision ${next}` : "No changes yet");
@@ -135,11 +141,12 @@ export async function viewEdit(jobId) {
     update();
   };
   update();
-  if (sessionStorage.getItem("adloom.focus") === "product") {
+  const focus = sessionStorage.getItem("adloom.focus");
+  if (focus === "product" || focus === "copy") {
     sessionStorage.removeItem("adloom.focus");
     afterRender(() => {
-      document.getElementById("product").scrollIntoView({ block: "center" });
-      form.product.focus({ preventScroll: true });
+      document.getElementById(focus).scrollIntoView({ block: "center" });
+      (focus === "product" ? form.product : form.hook_a).focus({ preventScroll: true });
     });
   }
 

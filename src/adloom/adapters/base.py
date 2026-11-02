@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -46,6 +47,7 @@ def get_adapters(settings: Settings | None = None, job_dir: Path | None = None) 
     if config.mode == "live":
         return _live_adapters(config, job_dir or config.data_dir)
     from adloom.adapters.mock_providers import (
+        FIXTURE_FAULTS,
         MockImage,
         MockMarketing,
         MockSpark,
@@ -53,13 +55,21 @@ def get_adapters(settings: Settings | None = None, job_dir: Path | None = None) 
         MockVoice,
     )
 
+    # Demo-only fault injection; read here so live runs never see it.
+    fault = os.environ.get("ADLOOM_FIXTURE_FAULT", "").strip() or None
+    if fault is not None and fault not in FIXTURE_FAULTS:
+        raise AdLoomError(
+            "E_INPUT_INVALID",
+            "input",
+            f"ADLOOM_FIXTURE_FAULT must be one of: {', '.join(sorted(FIXTURE_FAULTS))}",
+        )
     fixtures = Path(__file__).resolve().parents[3] / "tests/fixtures"
     return Adapters(
         MockSpark(fixtures),
         MockTracking(),
         MockImage(job_dir or config.data_dir),
         MockVoice(fixtures),
-        MockMarketing(),
+        MockMarketing(fault=fault),
     )
 
 

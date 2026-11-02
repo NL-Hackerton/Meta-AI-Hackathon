@@ -16,14 +16,18 @@ from adloom.schemas import (
     ApprovalRecord,
     ApprovalSubject,
     ArtifactRef,
+    ClaimReview,
+    EvidenceAssessment,
     ImageDigest,
     JobManifest,
     MarketingProfile,
+    NoteDocument,
     PublishedAd,
     PublishOperation,
     PublishPlan,
     PublishResult,
     approval_issues,
+    assess_evidence,
 )
 
 Resource = Literal["video", "image", "creative", "campaign", "adset", "ad"]
@@ -88,6 +92,44 @@ def publish_plan(snapshot: Snapshot, settings: Settings) -> PublishPlan:
     return fixture_publish_plan(snapshot)
 
 
+def claim_reviews(
+    snapshot: Snapshot,
+) -> tuple[tuple[EvidenceAssessment, ...], tuple[ClaimReview, ...]]:
+    """Assess every claim reference against the confirmed note and the normalized source.
+
+    Evidence IDs are ``<claim id>#<n>`` (1-based reference index). A claim is pending until
+    the owner decides; a stored decision only applies while its claim text is unchanged.
+    No schema rule marks a claim high-risk yet, so high_risk stays False.
+    """
+    understanding = snapshot.understanding
+    if understanding is None:
+        return (), ()
+    note = NoteDocument(text=snapshot.brief.note_text) if snapshot.brief.note_text else None
+    decided = {review.id: review for review in snapshot.claim_reviews}
+    evidence: list[EvidenceAssessment] = []
+    claims: list[ClaimReview] = []
+    for claim in understanding.claims:
+        ids = tuple(f"{claim.id}#{index}" for index in range(1, len(claim.references) + 1))
+        evidence += [
+            assess_evidence(key, reference, note=note, media=snapshot.media)
+            for key, reference in zip(ids, claim.references, strict=True)
+        ]
+        decision = decided.get(claim.id)
+        if decision is not None and decision.text != claim.text:
+            decision = None
+        claims.append(
+            ClaimReview(
+                id=claim.id,
+                text=claim.text,
+                classification=claim.classification,
+                reference_ids=ids,
+                status=decision.status if decision is not None else "pending",
+                actor=decision.actor if decision is not None else None,
+            )
+        )
+    return tuple(evidence), tuple(claims)
+
+
 def make_subject(store: JobStore, head: JobManifest, snapshot: Snapshot) -> ApprovalSubject:
     understanding, enrichment, plan = (
         snapshot.understanding,
@@ -96,8 +138,8 @@ def make_subject(store: JobStore, head: JobManifest, snapshot: Snapshot) -> Appr
     )
     if understanding is None or enrichment is None or plan is None or snapshot.publish_plan is None:
         raise AdLoomError("E_APPROVAL_REQUIRED", "publish", "Render and publish plans are required")
-    if understanding.claims:
-        raise AdLoomError("E_POLICY_BLOCK", "publish", "Claims require an explicit human review")
+    # Claims never block here; approval_issues judges their review state and evidence.
+    evidence, claims = claim_reviews(snapshot)
     artifacts: list[ArtifactRef] = [
         ArtifactRef(path=snapshot.brief.video_path, sha256=snapshot.media.normalized_sha256)
     ]
@@ -134,6 +176,8 @@ def make_subject(store: JobStore, head: JobManifest, snapshot: Snapshot) -> Appr
         variants=tuple(v.approval_projection() for v in snapshot.variants),
         thumbnails=(images[0], images[1], images[2]),
         provider_provenance=snapshot.provenance,
+        evidence=evidence,
+        claims=claims,
         policy_flags=check(fields),
         warnings=enrichment.warnings,
         degraded=any(c.degraded for c in snapshot.crops),

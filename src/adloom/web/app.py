@@ -29,10 +29,11 @@ from adloom.pipeline import (
     inspect_job,
     publish_job,
     resume_job,
+    review_claims,
     run_file,
 )
-from adloom.schemas import ApprovalRecord, ErrorCode, JobManifest
-from adloom.stages.publish import operations, unresolved
+from adloom.schemas import ApprovalRecord, ErrorCode, JobManifest, NoteEvidence
+from adloom.stages.publish import claim_reviews, operations, unresolved
 from adloom.web.profile import Profile, load_profile, save_profile
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -77,6 +78,11 @@ class NoteBody(BaseModel):
 class AbandonBody(BaseModel):
     operation_key: str
     actor: str
+
+
+class ClaimsBody(BaseModel):
+    actor: str
+    decisions: dict[str, str]
 
 
 def _error(status: int, code: ErrorCode, detail: str) -> JSONResponse:
@@ -133,6 +139,47 @@ def _moments(snapshot: Snapshot) -> list[dict[str, object]]:
         }
         for index, moment in enumerate(snapshot.understanding.key_moments)
     ]
+
+
+def _claims(snapshot: Snapshot, issues: list[str]) -> list[dict[str, object]]:
+    """Claims in model order with assessed evidence and their approval issue kinds."""
+    evidence, reviews = claim_reviews(snapshot)
+    assessed = {item.id: item for item in evidence}
+    result: list[dict[str, object]] = []
+    for claim in reviews:
+        refs: list[dict[str, object]] = []
+        for key in claim.reference_ids:
+            item = assessed[key]
+            reference = item.reference
+            span: dict[str, object] = (
+                {"quote": reference.quote, "start": reference.start, "end": reference.end}
+                if isinstance(reference, NoteEvidence)
+                else {"start_us": reference.start_us, "end_us": reference.end_us}
+            )
+            refs.append(
+                {
+                    "id": key,
+                    "kind": reference.kind,
+                    **span,
+                    "valid": item.valid,
+                    "reason": item.reason,
+                }
+            )
+        # approval_issues entries are "<kind>:<claim id>"; kinds never contain ":".
+        kinds = [kind for kind, _, owner in (i.partition(":") for i in issues) if owner == claim.id]
+        result.append(
+            {
+                "id": claim.id,
+                "text": claim.text,
+                "classification": claim.classification,
+                "status": claim.status,
+                "actor": claim.actor,
+                "required": claim.classification != "inference" or claim.high_risk,
+                "evidence": refs,
+                "issues": kinds,
+            }
+        )
+    return result
 
 
 def _notification(
@@ -436,7 +483,8 @@ def create_app(settings: Settings, allowed_hosts: tuple[str, ...] = LOOPBACK_HOS
             if snapshot.understanding is not None
             else [],
         )
-        result.setdefault("approval_issues", [])
+        issues = result.setdefault("approval_issues", [])
+        result["claims"] = _claims(snapshot, issues if isinstance(issues, list) else [])
         result["approval"] = None
         if head.approval_ref is not None:
             record = store.path(job_id, head.approval_ref.path)
@@ -469,6 +517,10 @@ def create_app(settings: Settings, allowed_hosts: tuple[str, ...] = LOOPBACK_HOS
     @app.post("/api/jobs/{job_id}/publish")
     def publish(job_id: str) -> dict[str, object]:
         return publish_job(settings, job_id).model_dump(mode="json")
+
+    @app.post("/api/jobs/{job_id}/claims")
+    def claims(job_id: str, body: ClaimsBody) -> dict[str, object]:
+        return review_claims(settings, job_id, body.decisions, body.actor).model_dump(mode="json")
 
     @app.post("/api/jobs/{job_id}/edit")
     def edit(job_id: str, body: EditBody) -> dict[str, object]:

@@ -943,7 +943,10 @@ def approval_issues(subject: ApprovalSubject) -> tuple[str, ...]:
         reference_validity[item.id] = item.valid and matches_source
     for claim in subject.claims:
         required = claim.classification != "inference" or claim.high_risk
-        if required and claim.status != "accepted":
+        # The owner said a rejected claim is not true; only rewriting the copy clears it.
+        if claim.status == "rejected":
+            issues.append(f"rejected_claim:{claim.id}")
+        elif required and claim.status != "accepted":
             issues.append(f"unreviewed_claim:{claim.id}")
         valid_refs = [references[key] for key in claim.reference_ids if reference_validity[key]]
         if claim.classification == "explicit" and not any(

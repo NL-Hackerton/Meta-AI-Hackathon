@@ -1,4 +1,282 @@
 [
-  {"id": "absolute_guarantee", "pattern": "100\\s*%\\s*보장|무조건\\s*보장", "replacement": "서비스 내용을 확인하세요"},
-  {"id": "medical_guarantee", "pattern": "완치|부작용\\s*없음", "replacement": "상세 정보를 확인하세요"}
+  {
+    "id": "personal_attribute_en",
+    "category": "personal_attributes",
+    "severity": "block",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "\\b(?:are\\s+you|do\\s+you\\s+(?:have|suffer\\s+from)|struggling\\s+with|suffering\\s+from|questioning\\s+your)\\s+(?:an?\\s+|from\\s+)?(?:gay|lesbian|bisexual|transgender|christian|muslim|jewish|buddhist|hindu|catholic|pregnant|disabled|diabetic|diabetes|depressed|depression|anxiety|cancer|adhd|autism|obese|overweight|bankrupt|broke|in\\s+debt|bad\\s+credit|a\\s+(?:convicted\\s+)?felon|\\d{2}\\s*(?:years?\\s+old|\\+)|over\\s+\\d{2}|gender\\s+identity|sexuality|hair\\s+loss|acne|insomnia)(?!\\w)\\s*\\??|\\b(?:depression|anxiety|diabetes|debt|acne|hair\\s+loss)\\s+getting\\s+you\\s+down\\b\\s*\\??",
+    "replacement": "Made for everyone.",
+    "policy_url": "https://transparency.meta.com/policies/ad-standards/objectionable-content/privacy-violations-personal-attributes/"
+  },
+  {
+    "id": "personal_attribute_ko",
+    "category": "personal_attributes",
+    "severity": "block",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "(?:당신|고객님|너)의\\s*(?:당뇨(?:병)?|우울증?|공황\\s*장애|불면증|탈모|비만|암\\s*환자|아토피|여드름|갱년기|임신|장애인?|신용\\s*불량자?|파산|빚|연체|동성애자|게이|레즈비언|성소수자|트랜스젠더|기독교인|불교\\s*신자|무슬림|전과자?)|(?:당뇨(?:병)?|우울증?|공황\\s*장애|불면증|탈모|비만|암\\s*환자|아토피|여드름|갱년기|임신|장애인?|신용\\s*불량자?|파산|빚|연체|동성애자|게이|레즈비언|성소수자|트랜스젠더|기독교인|불교\\s*신자|무슬림|전과자?)(?:\\s*중)?\\s*(?:이|가|으로|로|때문에|은|는)?\\s*(?:있으신가요|있으세요|있나요|이신가요|신가요|인가요|이세요|(?:고민|걱정)\\s*(?:이신가요|이세요|인가요|하시나요|되시나요)|고민하시나요|힘드신가요|괴로우신가요|시달리시나요|겪고\\s*계신가요)\\s*\\??",
+    "replacement": "누구나 부담 없이 만나보세요.",
+    "policy_url": "https://transparency.meta.com/policies/ad-standards/objectionable-content/privacy-violations-personal-attributes/"
+  },
+  {
+    "id": "health_cure_claim_en",
+    "category": "health_claims",
+    "severity": "block",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "\\b(?:cures?|cured|heals?|healed|eliminates?|reverses?|(?:a\\s+)?cure\\s+for)\\s+(?:your\\s+|my\\s+)?(?:diabetes|herpes|thyroid\\s+disease|psoriasis|ebola|cancer|autism|alzheimer'?s|parkinson'?s|als|hiv)\\b|\\bno\\s+side\\s+effects\\b",
+    "replacement": "supports everyday wellbeing",
+    "policy_url": "https://transparency.meta.com/policies/ad-standards/restricted-goods-services/health-wellness/"
+  },
+  {
+    "id": "health_cure_claim_ko",
+    "category": "health_claims",
+    "severity": "block",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "완치|부작용\\s*(?:이\\s*)?(?:없음|없어요|없는|없습니다|제로|0)|(?:당뇨|헤르페스|갑상선|건선|에볼라|암|자폐|치매|알츠하이머|파킨슨|루게릭|에이즈|HIV)\\s*(?:을|를|이|가|도)?\\s*(?:치유|낫게|고쳐|없애|극복)",
+    "replacement": "건강한 일상을 응원해요",
+    "policy_url": "https://transparency.meta.com/policies/ad-standards/restricted-goods-services/health-wellness/"
+  },
+  {
+    "id": "weight_loss_timeframe_en",
+    "category": "health_claims",
+    "severity": "block",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "\\b(?:lose|drop|shed|melt\\s+away|burn\\s+off)\\s+\\d+(?:\\.\\d+)?\\s*(?:kg|kgs|kilos?|lbs?|pounds?)\\s+in\\s+(?:\\d+|a|one|two|three|four)\\s*(?:days?|weeks?|months?)\\b",
+    "replacement": "support a balanced routine",
+    "policy_url": "https://transparency.meta.com/policies/ad-standards/restricted-goods-services/health-wellness/"
+  },
+  {
+    "id": "weight_loss_timeframe_ko",
+    "category": "health_claims",
+    "severity": "block",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "(?:\\d+\\s*(?:일|주|개월|달)|한\\s*달|일주일|보름)\\s*(?:만에|안에|내에?|동안|에)?\\s*(?:-\\s*\\d+(?:\\.\\d+)?\\s*(?:kg|킬로|키로)|\\d+(?:\\.\\d+)?\\s*(?:kg|킬로그램|킬로|키로)\\s*(?:을|이)?\\s*(?:감량|빠(?:져|지|짐|진)|빼|뺀|뺐))",
+    "replacement": "꾸준한 관리에 도움",
+    "policy_url": "https://transparency.meta.com/policies/ad-standards/restricted-goods-services/health-wellness/"
+  },
+  {
+    "id": "negative_self_image_en",
+    "category": "health_claims",
+    "severity": "block",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "\\b(?:ugly|flabby|embarrassing|disgusting|gross)\\s+(?:belly|body|fat|thighs?|arms?|skin|face|stomach|cellulite|love\\s+handles)(?:\\s+fat)?\\b|\\b(?:hate|ashamed\\s+of)\\s+your\\s+(?:body|belly|thighs?|arms?|skin|face|weight|looks)\\b|\\btired\\s+of\\s+being\\s+(?:fat|overweight|ugly)\\b",
+    "replacement": "feeling good",
+    "policy_url": "https://transparency.meta.com/policies/ad-standards/restricted-goods-services/health-wellness/"
+  },
+  {
+    "id": "negative_self_image_ko",
+    "category": "health_claims",
+    "severity": "block",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "(?:뱃살|팔뚝살|허벅지살|군살|옆구리살|턱살|셀룰라이트)\\s*(?:고민|스트레스|걱정|때문에|부끄|창피|지긋지긋)|(?:못생긴|뚱뚱한|부끄러운|창피한)\\s*(?:몸|얼굴|피부|배|다리|허벅지|팔뚝)",
+    "replacement": "기분 좋은 하루",
+    "policy_url": "https://transparency.meta.com/policies/ad-standards/restricted-goods-services/health-wellness/"
+  },
+  {
+    "id": "before_after_en",
+    "category": "before_after",
+    "severity": "warn",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "\\bbefore\\s*(?:&|and|/|\\+|vs\\.?|-and-)\\s*after\\b(?!\\s+(?:school|work|class|hours|dinner|lunch|breakfast)\\b)",
+    "replacement": "customer photo",
+    "policy_url": "https://transparency.meta.com/policies/ad-standards/restricted-goods-services/health-wellness/"
+  },
+  {
+    "id": "before_after_ko",
+    "category": "before_after",
+    "severity": "warn",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "비포\\s*(?:&|앤드?|and|/)?\\s*애프터|전\\s*후\\s*(?:비교|사진)|사용\\s*전\\s*(?:/|과|vs\\.?|·|,)?\\s*(?:사용\\s*)?후",
+    "replacement": "실제 사용 모습",
+    "policy_url": "https://transparency.meta.com/policies/ad-standards/restricted-goods-services/health-wellness/"
+  },
+  {
+    "id": "guaranteed_results_en",
+    "category": "guaranteed_results",
+    "severity": "block",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "\\b100\\s*%\\s*(?:guaranteed|effective|success(?:ful)?|results?)\\b|\\bguaranteed\\s+(?:results?|success|to\\s+work|weight\\s+loss)\\b|\\bresults\\s+guaranteed\\b|\\bworks\\s+every\\s+time\\b",
+    "replacement": "carefully made",
+    "policy_url": "https://transparency.meta.com/policies/ad-standards/fraud-scams/unacceptable-business-practices/"
+  },
+  {
+    "id": "guaranteed_results_ko",
+    "category": "guaranteed_results",
+    "severity": "block",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "(?:100\\s*%|무조건)\\s*(?:보장|효과|성공|합격)(?:하는|합니다|해요|해\\s*드려요|해드립니다|돼요|됩니다)?|(?:효과|결과|성공|합격)\\s*(?:를|을|가|이)?\\s*(?:100\\s*%\\s*)?보장(?:하는|합니다|해요|해\\s*드려요|해드립니다)?",
+    "replacement": "정성을 다하는",
+    "policy_url": "https://transparency.meta.com/policies/ad-standards/fraud-scams/unacceptable-business-practices/"
+  },
+  {
+    "id": "income_promise_en",
+    "category": "financial_promises",
+    "severity": "block",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "\\bguaranteed\\s+(?:returns?|profits?|income|earnings|approval)\\b|\\brisk[-\\s]free\\s+(?:investments?|returns?|profits?|trading)\\b|\\b(?:make|earn)\\s+(?:\\$\\s*\\d[\\d,]*k?|\\d[\\d,]*k?\\s*(?:dollars|bucks|usd))\\s*(?:a|per|every)\\s+(?:day|week|month)\\b|\\bget[-\\s]rich[-\\s]quick\\b|\\bdouble\\s+your\\s+(?:money|investment)\\b",
+    "replacement": "clear terms",
+    "policy_url": "https://transparency.meta.com/policies/community-standards/prohibited-commercial-practices/"
+  },
+  {
+    "id": "income_promise_ko",
+    "category": "financial_promises",
+    "severity": "block",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "(?:원금|수익(?:률)?|투자금|월\\s*수입)\\s*(?:을|를|이|가)?\\s*(?:100\\s*%\\s*)?보장|무위험\\s*(?:투자|수익)|월\\s*\\d[\\d,]*\\s*(?:만\\s*)?원\\s*(?:이상\\s*)?(?:보장|수익|벌기|벌어|벌|번다)|일확천금|고수익\\s*보장|대출\\s*(?:무조건\\s*)?(?:100\\s*%\\s*)?승인\\s*보장",
+    "replacement": "조건을 투명하게 안내해요",
+    "policy_url": "https://transparency.meta.com/policies/community-standards/prohibited-commercial-practices/"
+  },
+  {
+    "id": "unproven_superlative_en",
+    "category": "superlatives",
+    "severity": "warn",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "(?<!do\\sour\\s)(?<!do\\smy\\s)(?<!do\\syour\\s)\\b(?:the\\s+)?best\\b(?![\\s-]+(?:before|regards|wishes)\\b)|#\\s*1(?!\\d)|\\bno\\.\\s?1(?!\\d)|\\bnumber\\s+one\\b|\\bworld'?s\\s+(?:first|finest|greatest)\\b|\\bunbeatable\\b",
+    "replacement": "much-loved",
+    "policy_url": "https://transparency.meta.com/policies/ad-standards/fraud-scams/unacceptable-business-practices/"
+  },
+  {
+    "id": "unproven_superlative_ko",
+    "category": "superlatives",
+    "severity": "warn",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "최고(?![급가기조속점층치령위봉])(?:의|인)?|(?<!\\d)1\\s*(?:위|등(?!급))(?:의|인)?|넘버\\s*원|(?:국내|세계|업계)\\s*(?:최초|유일)",
+    "replacement": "자신 있는",
+    "policy_url": "https://transparency.meta.com/policies/ad-standards/fraud-scams/unacceptable-business-practices/"
+  },
+  {
+    "id": "urgency_scarcity_en",
+    "category": "urgency",
+    "severity": "warn",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "\\b(?:today\\s+only|last\\s+chance|only\\s+\\d+\\s+left|selling\\s+out\\s+fast|ends\\s+tonight|while\\s+supplies\\s+last|act\\s+now|(?<!no\\s)hurry)\\b",
+    "replacement": "during the promotion",
+    "policy_url": "https://www.facebook.com/business/m/one-sheeters/avoid-creating-negative-experiences-with-ads"
+  },
+  {
+    "id": "urgency_scarcity_ko",
+    "category": "urgency",
+    "severity": "warn",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "오늘만|마감\\s*임박|품절\\s*임박|곧\\s*마감|마지막\\s*기회|지금\\s*(?:바로\\s*)?안\\s*사면|단\\s*\\d+\\s*(?:개|명|분)\\s*(?:남|한정)",
+    "replacement": "행사 기간 내",
+    "policy_url": "https://www.facebook.com/business/m/one-sheeters/avoid-creating-negative-experiences-with-ads"
+  },
+  {
+    "id": "misleading_price_en",
+    "category": "misleading_price",
+    "severity": "warn",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "\\b(?:totally|completely|100\\s*%|absolutely)\\s+free\\b(?![\\s-]+(?:of|from)\\b)|\\bfree\\s+forever\\b|\\bno\\s+strings\\s+attached\\b|\\blowest\\s+prices?(?:\\s+guaranteed)?\\b|\\bcheapest\\b",
+    "replacement": "good value (see terms)",
+    "policy_url": "https://transparency.meta.com/policies/ad-standards/fraud-scams/unacceptable-business-practices/"
+  },
+  {
+    "id": "misleading_price_ko",
+    "category": "misleading_price",
+    "severity": "warn",
+    "fields": [
+      "primary_text",
+      "headline",
+      "hook",
+      "subtitle"
+    ],
+    "pattern": "(?:완전|전부|100\\s*%|평생|무조건|조건\\s*없이)\\s*무료|(?:역대\\s*)?최저가(?:\\s*보장)?|최저\\s*가격",
+    "replacement": "혜택가(조건 안내 참고)",
+    "policy_url": "https://transparency.meta.com/policies/ad-standards/fraud-scams/unacceptable-business-practices/"
+  }
 ]

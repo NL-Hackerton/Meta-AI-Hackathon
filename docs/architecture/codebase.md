@@ -1,6 +1,6 @@
 # AdLoom 코드베이스 설계 계약
 
-작성: 2026-10-25, 상태 갱신: 2026-11-02. [Architecture Spine](../../_bmad-output/planning-artifacts/architecture/architecture-AdLoom-2026-10-25/ARCHITECTURE-SPINE.md)의 서비스 설계 계약이다. 기존 스키마에 config·atomic job 저장·크롭·정책·mock 어댑터·단계·렌더·승인/게시·CLI를 연결했다. 현재 실행은 data-root lock 아래 동기 CLI와 같은 명령을 부르는 동기 로컬 웹(`web/app.py`, `web/static/index.html`)이다. 아래의 별도 worker·202 비동기 실행·session·claim 검토·장면/객체 편집 계약은 설계 상태다. 실행 방법은 루트 README, 태스크별 증거는 STATUS에 있다. root SPEC는 보존하며 설계는 SC-014, 데이터 규약은 SC-015, 재개 기록은 SC-017에 둔다.
+작성: 2026-10-25, 상태 갱신: 2026-11-02. [Architecture Spine](../../_bmad-output/planning-artifacts/architecture/architecture-AdLoom-2026-10-25/ARCHITECTURE-SPINE.md)의 서비스 설계 계약이다. 기존 스키마에 config·atomic job 저장·크롭·정책·mock 어댑터·단계·렌더·승인/게시·CLI를 연결했다. 현재 실행은 data-root lock 아래 동기 CLI와 같은 명령을 부르는 동기 로컬 웹(`web/app.py`, `web/static/index.html`)이다. claim 검토(§4.3)는 웹·pipeline에 구현했다. 아래의 별도 worker·202 비동기 실행·session·장면/객체 편집 계약은 설계 상태다. 실행 방법은 루트 README, 태스크별 증거는 STATUS에 있다. root SPEC는 보존하며 설계는 SC-014, 데이터 규약은 SC-015, 재개 기록은 SC-017에 둔다.
 
 ## 1. 모듈별 단일 책임
 
@@ -102,7 +102,7 @@ Image의 enable_image_search, enable_web_search, enable_shell은 false로 고정
 | 사용 구간·CTA | TRACKED | enrich; 동일 이미지/전사는 fingerprint로 재사용 |
 | 훅·자막 문구 | ENRICHED | assemble |
 | 본문·제목·예산·destination·게시 profile 갱신 | AWAITING_APPROVAL | 정책/근거/게시 계획 재검사, 영상 재사용 |
-| claim 검토 변경 | AWAITING_APPROVAL | manifest_seq만 증가, 기존 승인 무효화 |
+| claim 검토 변경 | AWAITING_APPROVAL | manifest_seq만 증가, 기존 승인 무효화(재렌더 없음) |
 
 `edit_job`은 pending_stage가 있으면 먼저 global run 입장을 예약한다. busy에는 무변경409다. 예약 뒤 revision 증가·승인 무효화·rollback/pending_stage를 원자 commit하고 READY/GO로 재계산한다. 실패·중단 편집도 pending_stage부터 재개하며 이전 실패 기록은 보존한다. spawn 실패는 새 revision을 rollback하지 않고 INTERRUPTED로 둔다. 미완료 단계가 없는 무렌더 편집만200이며, current6개가 없는 편집은 승인 대기로 바로 전이하지 않는다.
 
@@ -124,9 +124,17 @@ job.execution_mode는 create 시 fixture 또는 live로 고정한다. artifact�
 
 publish는 immutable approved snapshot과 업로드 직전 hash를 확인한 같은 열린 자산을 사용한다. 소유자의 악의적 로컬 파일 변조까지 막는다고 주장하지 않되 hash 불일치는 거부한다.
 
+### 4.3 claim 검토 (구현)
+
+live Spark의 `Understanding.claims`는 승인을 막는 예외가 아니라 검토 대상이다. `make_subject`는 claim마다 참조를 `assess_evidence`로 확정 note·정규화 원본과 대조해 `ApprovalSubject.evidence`(ID `<claim id>#<n>`)를 만들고, `Snapshot.claim_reviews`의 소유자 결정을 붙인 `ClaimReview`를 `ApprovalSubject.claims`에 넣는다. 결정이 없거나 claim 문장이 바뀌면 pending이다. 고위험 판정 규칙은 아직 없어 `high_risk=False`다. 차단 판단은 `approval_issues`가 한다: 필수(inference가 아닌) claim의 pending은 `unreviewed_claim`, 근거 부족·무효는 `missing_*_evidence`·`invalid_evidence`, 거절은 필수 여부와 무관하게 `rejected_claim`이다.
+
+`review_claims(settings, job_id, decisions, actor)`(`POST /api/jobs/:id/claims`)는 execution lock 아래 AWAITING_APPROVAL/APPROVED이고 게시 기록이 없는 job만 받는다. 모든 ID가 현재 claim이고 값이 accepted/rejected여야 하며 아니면 무변경422다. 같은 결정이면 no-op, 바뀌면 같은 revision에 새 manifest_seq를 commit하고 approval_ref를 지워 AWAITING_APPROVAL로 되돌린다(재렌더 없음, 기존 승인 digest는 409).
+
+거절은 "이 문장은 사실이 아니다"라는 소유자 판단이다. 승인은 소유자가 문구를 고칠 때까지 막힌다. `edit_job`에서 훅·제목·본문 중 하나라도 바뀌면 거절된 claim을 `Understanding.claims`와 `claim_reviews`에서 함께 빼고(소유자가 문구를 다시 썼다는 뜻), 수락 결정은 유지한다. 장면·추적 대상만 바꾸는 편집은 거절을 유지한다.
+
 ## 5. API·CLI 공용 명령 계약
 
-아래 endpoint는 설계다. 2026-11-02 구현한 로컬 웹은 이 중 일부를 동기 요청으로 제공한다: `GET/POST /api/jobs`(업로드 후 같은 요청에서 mock 파이프라인 실행, 음성만 있으면 전사 확인 대기에서 멈춤), `GET/DELETE /api/jobs/:id`, `POST /api/jobs/:id/{approve,publish,edit,resume,confirm-note}`, `POST /api/jobs/:id/publish/abandon`, `GET/PUT /api/profile`, `GET /api/notifications`, `GET /api/status`, 검토용 미디어 `GET /api/jobs/:id/files/{renders,enrichment,images}/…`와 `input/normalized.mp4`(Range 지원). edit는 문구 외에 `moments`(사용할 key moment 색인)와 `product`(추적 대상 문구)를 받아 §4.1 표대로 assemble 또는 track부터 다시 실행한다. session 대신 loopback Host 허용목록, 쓰기 요청의 `X-AdLoom-Request: 1` 헤더·Origin 일치, Content-Length 257MiB 사전 검사로 교차 사이트 쓰기를 403/413으로 거부한다. 승인은 화면에서 본 `content_digest`를 보내며 다르면 409다. 설계의 쓰기 요청은 session/CSRF와 명시 base 값을 검증한다.
+아래 endpoint는 설계다. 2026-11-02 구현한 로컬 웹은 이 중 일부를 동기 요청으로 제공한다: `GET/POST /api/jobs`(업로드 후 같은 요청에서 mock 파이프라인 실행, 음성만 있으면 전사 확인 대기에서 멈춤), `GET/DELETE /api/jobs/:id`, `POST /api/jobs/:id/{approve,publish,edit,resume,confirm-note,claims}`, `POST /api/jobs/:id/publish/abandon`, `GET/PUT /api/profile`, `GET /api/notifications`, `GET /api/status`, 검토용 미디어 `GET /api/jobs/:id/files/{renders,enrichment,images}/…`와 `input/normalized.mp4`(Range 지원). edit는 문구 외에 `moments`(사용할 key moment 색인)와 `product`(추적 대상 문구)를 받아 §4.1 표대로 assemble 또는 track부터 다시 실행한다. session 대신 loopback Host 허용목록, 쓰기 요청의 `X-AdLoom-Request: 1` 헤더·Origin 일치, Content-Length 257MiB 사전 검사로 교차 사이트 쓰기를 403/413으로 거부한다. 승인은 화면에서 본 `content_digest`를 보내며 다르면 409다. 설계의 쓰기 요청은 session/CSRF와 명시 base 값을 검증한다.
 
 | HTTP | 공용 command | 결과 |
 | --- | --- | --- |
@@ -135,7 +143,7 @@ publish는 immutable approved snapshot과 업로드 직전 hash를 확인한 같
 | GET `/api/jobs/:id` | get_job | current head+필요 summary, provider 준비 boolean |
 | POST `/api/jobs/:id/run` | run_job | 모델·렌더 worker202 또는 busy409 |
 | PATCH `/api/jobs/:id/draft` | edit_job | base_revision 검사; busy이면 무변경409, 무렌더 편집200, 재계산 예약·commit 뒤202 |
-| POST `/api/jobs/:id/reviews` | review_claims | 필수 claim 검토·manifest_seq 갱신 |
+| POST `/api/jobs/:id/claims` | review_claims | `{actor, decisions: {id: accepted\|rejected}}`, manifest_seq 갱신·승인 무효화 |
 | POST `/api/jobs/:id/approve` | approve_job | 현재 revision의 유효 approval 생성 |
 | POST `/api/jobs/:id/publish` | publish_job | base_revision+expected_approval_digest·gate 검사 후202 |
 | POST `/api/jobs/:id/cancel` | request_cancel | run_state 변경202; 원격 취소 보장 없음 |

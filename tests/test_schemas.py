@@ -359,6 +359,20 @@ def test_pending_claim_and_block_policy_prevent_approval():
     assert "unreviewed_claim:c" in issues
 
 
+def test_rejected_claim_blocks_approval_even_when_optional():
+    value = subject()
+    value["claims"] = [
+        {
+            "id": "gift",
+            "text": "선물",
+            "classification": "inference",
+            "status": "rejected",
+            "actor": "owner",
+        }
+    ]
+    assert approval_issues(parse(ApprovalSubject, value)) == ("rejected_claim:gift",)
+
+
 def test_post_journal_cannot_confirm_without_an_id_or_mix_modes():
     prepared = {
         "job_id": JOB,

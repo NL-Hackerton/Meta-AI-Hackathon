@@ -104,10 +104,16 @@ class MockVoice:
         return TypeAdapter(tuple[Segment, ...]).validate_json(path.read_bytes())
 
 
+FIXTURE_FAULTS = frozenset({"publish_unknown_once"})
+# Faults already injected in this process; "once" survives fresh adapter instances.
+_FIRED_FAULTS: set[str] = set()
+
+
 class MockMarketing:
-    def __init__(self, fail_on: int | None = None) -> None:
+    def __init__(self, fail_on: int | None = None, fault: str | None = None) -> None:
         self.requests: list[dict[str, object]] = []
         self.fail_on = fail_on
+        self.fault = fault
 
     def create(self, resource: str, payload: dict[str, object], operation_key: str) -> str:
         if resource not in {"video", "image", "creative", "campaign", "adset", "ad"}:
@@ -120,4 +126,12 @@ class MockMarketing:
                 "E_PUBLISH_PARTIAL", "publish", "Injected pre-request failure", True
             )
         self.requests.append({"resource": resource, "payload": payload, "key": operation_key})
+        if (
+            self.fault == "publish_unknown_once"
+            and resource == "adset"
+            and self.fault not in _FIRED_FAULTS
+        ):
+            # The request was recorded as sent, but the response is lost: outcome unknown.
+            _FIRED_FAULTS.add(self.fault)
+            raise ConnectionError("Injected fixture fault: response lost after send")
         return "fixture-" + hashlib.sha256(operation_key.encode()).hexdigest()[:24]

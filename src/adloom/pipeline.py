@@ -4,7 +4,7 @@ import json
 import shutil
 import subprocess
 import unicodedata
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
@@ -17,6 +17,7 @@ from adloom.jobs import NEXT_STAGE, JobStore, atomic_write
 from adloom.policy import check, understanding_fields
 from adloom.schemas import (
     Brief,
+    ClaimReview,
     JobManifest,
     JobState,
     Provenance,
@@ -30,6 +31,7 @@ from adloom.stages.input import fill_note, normalize
 from adloom.stages.publish import (
     abandon,
     approve,
+    claim_reviews,
     make_subject,
     operations,
     publish,
@@ -169,6 +171,7 @@ def _run(settings: Settings, store: JobStore, head: JobManifest) -> JobManifest:
                 adapters.image,
                 adapters.voice,
                 mode,
+                language=snapshot.brief.language,
             )
             origin = Provenance(
                 mode=mode,
@@ -369,6 +372,20 @@ def edit_job(
             value["headline"] = headline
         changed = Understanding.model_validate(value)
         changed = changed.model_copy(update={"policy_flags": check(understanding_fields(changed))})
+        reviews = snapshot.claim_reviews
+        old = snapshot.understanding
+        if (changed.hook_candidates, changed.primary_text, changed.headline) != (
+            old.hook_candidates,
+            old.primary_text,
+            old.headline,
+        ):
+            # A rejected claim means "this is not true". Rewriting the copy is the owner's fix,
+            # so the rejected claims leave the reviewed set; accepted decisions stay.
+            rejected = {review.id for review in reviews if review.status == "rejected"}
+            changed = changed.model_copy(
+                update={"claims": tuple(c for c in changed.claims if c.id not in rejected)}
+            )
+            reviews = tuple(review for review in reviews if review.id not in rejected)
         rollback: JobState | None = None
         if changed != snapshot.understanding or selection != snapshot.moment_selection:
             rollback = "ENRICHED"
@@ -383,6 +400,7 @@ def edit_job(
             "variants": (),
             "render_plan": None,
             "approval_subject": None,
+            "claim_reviews": reviews,
         }
         if rollback == "UNDERSTOOD":
             update.update({"track": None, "crops": (), "enrichment": None})
@@ -395,6 +413,54 @@ def edit_job(
             approval_ref=None,
         )
         return _run(settings, store, head)
+
+
+def review_claims(
+    settings: Settings, job_id: str, decisions: Mapping[str, str], actor: str
+) -> JobManifest:
+    """Record the owner's verdict on claims. Same revision, new manifest; approval cleared.
+
+    Videos are not re-rendered. A rejected claim keeps approval blocked until a copy edit
+    (edit_job) drops it from the reviewed set.
+    """
+    store = JobStore(settings.data_dir)
+    with store.execution_lock():
+        head = store.load(job_id)
+        if head.state not in {"AWAITING_APPROVAL", "APPROVED"} or any(
+            store.path(job_id).glob("publish/*.json")
+        ):
+            raise AdLoomError(
+                "E_STATE_CONFLICT", "publish", "Only unposted, rendered jobs can be reviewed"
+            )
+        actor = unicodedata.normalize("NFC", actor).strip()
+        if not 1 <= len(actor) <= 80:
+            raise AdLoomError("E_INPUT_INVALID", "publish", "Enter who reviewed the claims")
+        snapshot = store.snapshot(head)
+        _, current = claim_reviews(snapshot)
+        known = {claim.id: claim for claim in current}
+        if (
+            not decisions
+            or not set(decisions) <= set(known)
+            or not set(decisions.values()) <= {"accepted", "rejected"}
+        ):
+            raise AdLoomError(
+                "E_INPUT_INVALID", "publish", "Mark listed claims as accepted or rejected"
+            )
+        reviewed = {claim.id: claim for claim in current if claim.status != "pending"}
+        for claim_id, status in decisions.items():
+            reviewed[claim_id] = ClaimReview.model_validate(
+                {**known[claim_id].model_dump(), "status": status, "actor": actor}
+            )
+        updated = tuple(sorted(reviewed.values(), key=lambda claim: claim.id))
+        if updated == snapshot.claim_reviews:
+            return head
+        return store.commit(
+            head,
+            snapshot.model_copy(update={"claim_reviews": updated, "approval_subject": None}),
+            state="AWAITING_APPROVAL",
+            last_success_state="AWAITING_APPROVAL",
+            approval_ref=None,
+        )
 
 
 def confirm_note(settings: Settings, job_id: str, text: str) -> JobManifest:

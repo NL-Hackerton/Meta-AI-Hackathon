@@ -15,6 +15,50 @@ from adloom.schemas import (
     resolution,
 )
 
+CTA_LABELS: dict[str, dict[str, str]] = {
+    "ko": {"LEARN_MORE": "자세히 보기"},
+    "en": {"LEARN_MORE": "Learn more"},
+}
+
+
+def cta_label(cta: str, language: str) -> str:
+    """On-screen end-card label for a CTA in the brief's ad language."""
+    if language not in CTA_LABELS:
+        raise AdLoomError("E_INPUT_INVALID", "enrich", "Unsupported ad language")
+    return CTA_LABELS[language].get(cta, cta)
+
+
+def _word(character: str) -> bool:
+    return character.isascii() and character.isalnum()
+
+
+def wrap_lines(
+    draw: ImageDraw.ImageDraw, font: ImageFont.FreeTypeFont, text: str, max_width: float
+) -> list[str]:
+    """Wrap per character, keeping Latin words whole when the line has a space to break at.
+
+    Hangul and other non-ASCII text wraps exactly as before, so existing renders keep
+    their digests.
+    """
+    lines: list[str] = []
+    line = ""
+    for character in text:
+        if draw.textlength(line + character, font=font) <= max_width:
+            line += character
+        elif character == " " and line and _word(line[-1]):
+            lines.append(line)
+            line = ""
+        elif _word(character) and line and _word(line[-1]) and " " in line.strip():
+            cut = line.rstrip().rfind(" ")
+            lines.append(line[:cut])
+            line = line[cut + 1 :] + character
+        else:
+            lines.append(line)
+            line = character
+    if line:
+        lines.append(line)
+    return lines
+
 
 def text_image(text: str, size: tuple[int, int], *, bottom: bool = False) -> Image.Image:
     image = Image.new("RGBA", size, (0, 0, 0, 0))
@@ -22,17 +66,7 @@ def text_image(text: str, size: tuple[int, int], *, bottom: bool = False) -> Ima
     font = ImageFont.truetype(str(FONT_PATH), 58)
     font.set_variation_by_axes([600])
     width, height = size
-    lines: list[str] = []
-    line = ""
-    for character in text:
-        if draw.textlength(line + character, font=font) > width * 0.82:
-            lines.append(line)
-            line = character
-        else:
-            line += character
-    if line:
-        lines.append(line)
-    value = "\n".join(lines)
+    value = "\n".join(wrap_lines(draw, font, text, width * 0.82))
     bounds = draw.multiline_textbbox((0, 0), value, font=font, spacing=10)
     text_h = bounds[3] - bounds[1]
     top = int(height * SAFE_TOP) + 30
@@ -58,7 +92,10 @@ def enrich(
     image: ImageAdapter,
     voice: VoiceAdapter,
     mode: ExecutionMode = "fixture",
+    *,
+    language: str = "ko",
 ) -> EnrichResult:
+    cta_text = cta_label(understanding.cta, language)
     directory = job_dir / "enrichment"
     directory.mkdir(parents=True, exist_ok=True)
     warnings: list[str] = []
@@ -107,7 +144,6 @@ def enrich(
         card = (
             Image.new("RGBA", size, (18, 60, 51, 255)) if fallback else background.convert("RGBA")
         )
-        cta_text = {"LEARN_MORE": "자세히 보기"}.get(understanding.cta, understanding.cta)
         card.alpha_composite(text_image(cta_text, size))
         endcard = directory / f"endcard-{suffix}.png"
         card.convert("RGB").save(endcard)
@@ -129,7 +165,7 @@ def enrich(
         )
     if fallback:
         warnings.append("Image generation failed; original frame and solid endcard used")
-    transcript = voice.transcribe(video, "ko") if media.has_audio else ()
+    transcript = voice.transcribe(video, language) if media.has_audio else ()
     return EnrichResult(
         source_duration_us=media.duration_us,
         thumbnails=(thumbnails[0], thumbnails[1], thumbnails[2]),

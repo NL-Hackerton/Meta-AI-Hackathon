@@ -1,10 +1,10 @@
-import { app, esc, won, short, when, MAKING, stateBadge, PHASE, resourceName, api, toast, errorText, setNav, head, stepList, onLeave } from "../core.js";
-import { ASPECTS, activeStep, isRunning, isInterrupted, needsNote, failureCard, wireResume, stopForm, wireStop, unresolved, poll, onRoute, actorName, rememberActor, actorError, checkActor, serverBusy, busyNote, holdWhileBusy } from "../flow.js";
+import { app, esc, won, short, when, MAKING, stateBadge, PHASE, resourceName, api, toast, errorText, setNav, head, stepList, onLeave, afterRender } from "../core.js";
+import { ASPECTS, activeStep, isRunning, isInterrupted, needsNote, failureCard, wireResume, stopForm, wireStop, unresolved, poll, onRoute, clock, actorName, rememberActor, actorError, checkActor, serverBusy, busyNote, holdWhileBusy } from "../flow.js";
 import { refreshBell } from "../notify.js";
 import { sourcePanel, mountSource } from "../tracking.js";
 
 /** Controls that change a job; locked while the server runs a command for another job. */
-const ACTIONS = "#approve button.coral, #openSheet, #publish, [data-suggest], #useNote, [data-resume-job], a[data-edit]";
+const ACTIONS = "#approve button.coral, #openSheet, #publish, [data-suggest], #useNote, [data-resume-job], a[data-edit], [data-decide]";
 
 const EDITABLE = ["AWAITING_APPROVAL", "APPROVED"];
 const FIELD_LABEL = { primary_text: "Primary text", headline: "Headline", "hook:a": "Hook A", "hook:b": "Hook B", "hook:c": "Hook C (unused)" };
@@ -168,9 +168,87 @@ function copyCard(d) {
       <dt>Button</dt><dd>${esc((plan?.cta || u.cta).replaceAll("_", " ").toLowerCase())}</dd></dl></div>`;
 }
 
+/* Claims Spark found in the copy: the owner says whether each is true. */
+const CLAIM_KIND = { explicit: "From your note", observation: "Seen in the video", inference: "AdLoom's inference" };
+const CLAIM_ISSUES = new Set(["unreviewed_claim", "rejected_claim", "missing_note_evidence", "missing_video_evidence", "invalid_evidence", "unsupported_high_risk_claim"]);
+const REMOVE = "Mark it Not true, then edit the copy to remove it.";
+const ISSUE_TEXT = {
+  unreviewed_claim: "Answer True or Not true before approving.",
+  missing_note_evidence: `Nothing in your note backs this up. ${REMOVE}`,
+  missing_video_evidence: `No moment in your video shows this. ${REMOVE}`,
+  invalid_evidence: `A source AdLoom pointed to doesn't match your note or video. ${REMOVE}`,
+  unsupported_high_risk_claim: `Sensitive claims need your own words in the note. ${REMOVE}`,
+};
+const REASON_TEXT = {
+  source_unavailable: "source not available",
+  source_mismatch: "points to a different source",
+  out_of_bounds: "points past the end",
+  quote_mismatch: "these words aren't in your note",
+};
+const STATUS_BADGE = { accepted: `<span class="badge b-done">True</span>`, rejected: `<span class="badge b-danger">Not true</span>`, pending: `<span class="badge b-warn">Check</span>` };
+// Claim whose decision just changed; focused again after the screen re-renders.
+let claimFocus = null;
+
+/** Claim issues that block approval, as one plain sentence for the approve card. */
+function claimBlockReason(d) {
+  const claims = d.claims || [];
+  const pending = claims.filter((c) => c.issues.includes("unreviewed_claim")).length;
+  const rejected = claims.filter((c) => c.issues.includes("rejected_claim")).length;
+  const unsupported = claims.filter((c) => c.status !== "rejected" && c.issues.some((i) => i !== "unreviewed_claim" && i !== "rejected_claim")).length;
+  const parts = [];
+  if (pending) parts.push(`answer ${pending} claim${pending === 1 ? "" : "s"} about your ad`);
+  if (rejected) parts.push(`edit the copy to remove ${rejected === 1 ? "the claim" : `${rejected} claims`} you marked not true`);
+  if (unsupported) parts.push(`${unsupported === 1 ? "1 claim isn't" : `${unsupported} claims aren't`} backed by your note or video`);
+  return parts.length ? parts.join("; ") : "";
+}
+
+function noteQuote(note, ev) {
+  const chars = Array.from(note || "");
+  if (!ev.valid || ev.end > chars.length) return `<q class="cv-quote bad">${esc(ev.quote)}</q>`;
+  const from = Math.max(0, ev.start - 24), to = Math.min(chars.length, ev.end + 24);
+  return `<q class="cv-quote">${from ? "…" : ""}${esc(chars.slice(from, ev.start).join(""))}<mark>${esc(chars.slice(ev.start, ev.end).join(""))}</mark>${esc(chars.slice(ev.end, to).join(""))}${to < chars.length ? "…" : ""}</q>`;
+}
+
+function evidenceChip(d, ev) {
+  const why = ev.valid ? "" : `<small class="cv-bad">Not usable · ${esc(REASON_TEXT[ev.reason] || ev.reason)}</small>`;
+  if (ev.kind === "note") return `<div class="cv-ev"><span class="cv-ev-k">Your note</span>${noteQuote(d.snapshot.brief.note_text, ev)}${why}</div>`;
+  const range = `${clock(ev.start_us, true)}–${clock(ev.end_us, true)}`;
+  const play = ev.valid && d.source_url
+    ? `<button type="button" class="chip cv-seek" data-seek="${ev.start_us}" aria-label="Show ${range} in the source video">▶ ${range}</button>`
+    : `<span class="mono">${range}</span>`;
+  return `<div class="cv-ev"><span class="cv-ev-k">Your video</span>${play}${why}</div>`;
+}
+
+function claimsCard(d) {
+  const claims = d.claims || [];
+  if (!claims.length) return "";
+  const job = d.job, editable = EDITABLE.includes(job.state);
+  const open = claims.filter((c) => c.issues.length).length;
+  const items = claims.map((c) => {
+    const button = (status, label) => `<button type="button" class="btn small light cv-${status}" data-decide="${status}" aria-pressed="${c.status === status}">${label}</button>`;
+    const decide = editable ? `<div class="cv-decide" role="group" aria-label="Is this true?">${button("accepted", "True")}${button("rejected", "Not true")}</div>` : "";
+    // Once marked not true, the only fix is the copy edit below; source issues are moot.
+    const issues = c.status === "rejected" ? "" : c.issues.filter((i) => ISSUE_TEXT[i]).map((i) => `<li>${esc(ISSUE_TEXT[i])}</li>`).join("");
+    const fix = c.status === "rejected"
+      ? `<p class="cv-claim-fix">You said this isn't true. Edit the copy to remove it.${editable ? ` <a class="cv-link" data-edit data-focus-copy href="#/jobs/${esc(job.job_id)}/edit">Edit the copy</a>` : ""}</p>` : "";
+    return `<li class="cv-claim${c.issues.length ? " open" : ""}" data-claim="${esc(c.id)}">
+        <div class="cv-claim-head"><span class="cv-kind k-${esc(c.classification)}">${CLAIM_KIND[c.classification] || esc(c.classification)}</span>${c.required ? "" : `<span class="hint">optional</span>`}${STATUS_BADGE[c.status] || ""}</div>
+        <p class="cv-claim-text">“${esc(c.text)}”</p>
+        ${c.evidence.length ? `<div class="cv-evs">${c.evidence.map((ev) => evidenceChip(d, ev)).join("")}</div>` : `<p class="hint cv-nosrc">No source given.</p>`}
+        ${issues ? `<ul class="cv-claim-issues">${issues}</ul>` : ""}
+        ${fix}
+        <div class="cv-claim-foot">${decide}${c.actor && c.status !== "pending" ? `<span class="hint">Checked by ${esc(c.actor)}</span>` : ""}</div></li>`;
+  }).join("");
+  return `<form class="card cv-claims" id="claims" aria-labelledby="claimsTitle" novalidate>
+      <div class="cv-title"><h2 id="claimsTitle">Check what the ad says</h2>${open ? `<span class="cv-flag danger">${open} to resolve</span>` : `<span class="cv-flag ok">All checked</span>`}</div>
+      <p class="hint">AdLoom found these claims in the copy. Say whether each is true for your business. Answers apply to this revision and clear any earlier approval.</p>
+      ${editable ? `<label class="field">Checked by<input class="input" name="actor" required maxlength="80" autocomplete="name" value="${esc(actorName())}" placeholder="Your name"></label>${actorError}` : ""}
+      <ol class="cv-claim-list">${items}</ol></form>`;
+}
+
 function warningsNote(d) {
   const items = [];
-  for (const issue of (d.approval_issues || []).filter((i) => i !== "policy_block")) items.push(`<div class="flag"><span class="badge b-danger" style="justify-self:start">${esc(issue.replaceAll("_", " "))}</span><span style="color:var(--text-2)">Resolve this before approving.</span></div>`);
+  for (const issue of (d.approval_issues || []).filter((i) => i !== "policy_block" && !CLAIM_ISSUES.has(i.split(":")[0]))) items.push(`<div class="flag"><span class="badge b-danger" style="justify-self:start">${esc(issue.replaceAll("_", " "))}</span><span style="color:var(--text-2)">Resolve this before approving.</span></div>`);
   if (d.approval_error) items.push(`<div class="flag"><span class="badge b-danger" style="justify-self:start">${esc(d.approval_error.code)}</span><span style="color:var(--text-2)">${esc(d.approval_error.detail)}</span></div>`);
   if (d.clipped) items.push(`<div class="flag"><span class="badge b-warn" style="justify-self:start">Edge frames</span><span style="color:var(--text-2)">The product touches the frame edge in some frames. Check the marked variants.</span></div>`);
   const inBlockedCard = d.job.state === "AWAITING_APPROVAL" && (d.approval_issues || []).includes("policy_block");
@@ -211,10 +289,12 @@ function approveCard(d) {
   const blockedByPolicy = (d.approval_issues || []).includes("policy_block");
   if (blockedByPolicy) return blockedCard(d);
   const blocked = (d.approval_issues || []).length > 0 || !!d.approval_error;
+  const claimWhy = claimBlockReason(d);
   return `<div class="card cv-approve" id="approveCard" aria-labelledby="approveTitle">
       <button type="button" class="cv-grab" data-close aria-label="Close"></button>
       <div class="cv-title"><h2 id="approveTitle">Approve these ads?</h2>${blocked ? `<span class="cv-flag danger">Blocked</span>` : `<span class="badge b-done">Ready</span>`}</div>
       <p class="hint">Ads are created exactly as below. Any later change needs a new approval.</p>
+      ${claimWhy ? `<p class="cv-claim-why" role="status">Approval is locked: ${esc(claimWhy)}. <button type="button" class="cv-link" data-to-claims>Check what the ad says</button></p>` : ""}
       <dl class="kv">
         <dt>Ads</dt><dd>2 × 9:16 (Hook A, B)</dd>
         <dt>Status</dt><dd style="color:var(--coral-deep)">Paused · never auto-activated</dd>
@@ -329,6 +409,7 @@ function renderReview(d, hash, rerender, note) {
   else if (job.state === "PUBLISHED_PAUSED") { panel = publishedCard(d); step = 3; title = "Published · paused"; sub = "Both 9:16 ads exist on Meta, paused. Nothing is spent until you turn them on in Ads Manager."; }
   else { panel = publishFailedCard(d); step = 2; title = "Publishing to Meta"; sub = "Each request is saved before it is sent. Unknown results are never re-sent automatically."; }
   const sheet = job.state === "AWAITING_APPROVAL" && !(d.approval_issues || []).includes("policy_block");
+  const claimWhy = job.state === "AWAITING_APPROVAL" ? claimBlockReason(d) : "";
 
   const blockedBadge = job.state === "AWAITING_APPROVAL" && (d.approval_issues || []).length > 0;
   app.innerHTML = head(crumb(d), title, sub, blockedBadge ? `<span class="badge b-danger">Blocked</span>` : stateBadge(job.state)) +
@@ -338,12 +419,13 @@ function renderReview(d, hash, rerender, note) {
         <div class="cv-o-variants">${variantsCard(d)}</div>
         <div class="cv-o-copy">${copyCard(d)}</div>
       </div><div class="stack">
+        <div class="cv-o-claims">${claimsCard(d)}</div>
         <div class="cv-o-panel${sheet ? " cv-sheet" : ""}" id="panel">${panel}</div>
         <div class="cv-o-warn">${warningsNote(d)}${cropNote(d)}</div>
       </div></div>
       ${journalTable(d)}
-      ${sheet ? `<div class="cv-mbar"><button class="btn coral wide" id="openSheet">Approve as is</button><a class="btn light wide" data-edit href="#/jobs/${esc(job.job_id)}/edit">Edit copy or scenes</a></div><div class="cv-backdrop" data-close hidden></div>` : ""}`;
-  mountSource(app, d);
+      ${sheet ? `<div class="cv-mbar">${claimWhy ? `<button type="button" class="btn coral wide" data-to-claims>Check what the ad says</button>` : `<button class="btn coral wide" id="openSheet">Approve as is</button>`}<a class="btn light wide" data-edit href="#/jobs/${esc(job.job_id)}/edit">Edit copy or scenes</a></div><div class="cv-backdrop" data-close hidden></div>` : ""}`;
+  const source = mountSource(app, d);
 
   app.querySelectorAll("[data-ratio]").forEach((chip) => chip.onclick = () => {
     app.querySelectorAll("[data-ratio]").forEach((c) => c.setAttribute("aria-pressed", String(c === chip)));
@@ -367,6 +449,48 @@ function renderReview(d, hash, rerender, note) {
   app.querySelectorAll("[data-close]").forEach((el) => el.addEventListener("click", () => setSheet(false)));
   onLeave(() => document.body.classList.remove("cv-locked"));
   panelEl.addEventListener("keydown", (e) => { if (e.key === "Escape") setSheet(false); });
+
+  const smooth = () => !matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "auto";
+  const claimsEl = document.getElementById("claims");
+  // Jump from the approval panel (or the mobile bar) to the first claim that still needs work.
+  app.querySelectorAll("[data-to-claims]").forEach((b) => b.onclick = () => {
+    setSheet(false);
+    const target = claimsEl?.querySelector(".cv-claim.open") || claimsEl;
+    target?.scrollIntoView({ behavior: smooth(), block: "center" });
+    (target?.querySelector("[data-decide]:not([aria-pressed=true]), a[data-edit]") || target)?.focus({ preventScroll: true });
+  });
+  app.querySelectorAll("[data-seek]").forEach((b) => b.onclick = () => {
+    source.seek(Number(b.dataset.seek));
+    app.querySelector(".cv-source")?.scrollIntoView({ behavior: smooth(), block: "nearest" });
+  });
+  claimsEl?.querySelectorAll("[data-decide]").forEach((b) => b.onclick = async () => {
+    if (b.disabled || b.getAttribute("aria-pressed") === "true") return;
+    const actor = checkActor(claimsEl);
+    if (!actor) return;
+    const id = b.closest("[data-claim]").dataset.claim, status = b.dataset.decide, label = b.textContent;
+    const buttons = claimsEl.querySelectorAll("[data-decide]");
+    buttons.forEach((x) => x.disabled = true);
+    b.innerHTML = `<span class="spinner"></span> ${esc(label)}`;
+    try {
+      await api(`/api/jobs/${job.job_id}/claims`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actor, decisions: { [id]: status } }) });
+      rememberActor(actor);
+      const cleared = job.state === "APPROVED" ? " Approval cleared; approve again." : "";
+      toast((status === "accepted" ? "Marked true." : "Marked not true. Edit the copy to remove it.") + cleared);
+      claimFocus = { id, status };
+      refreshBell();
+      rerender();
+    } catch (err) { toast(errorText(err), true); buttons.forEach((x) => x.disabled = false); b.textContent = label; }
+  });
+  app.querySelectorAll("[data-focus-copy]").forEach((a) => a.addEventListener("click", () => sessionStorage.setItem("adloom.focus", "copy")));
+  if (claimFocus) {
+    const { id, status } = claimFocus;
+    claimFocus = null;
+    afterRender(() => {
+      const button = app.querySelector(`[data-claim="${CSS.escape(id)}"] [data-decide="${status}"]`);
+      button?.closest("[data-claim]").scrollIntoView({ block: "nearest" });
+      button?.focus({ preventScroll: true });
+    });
+  }
 
   const form = document.getElementById("approve");
   if (form) form.onsubmit = async (event) => {

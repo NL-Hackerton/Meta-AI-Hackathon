@@ -16,6 +16,7 @@ from adloom.schemas import (
     ApprovalSubject,
     ArtifactRef,
     Brief,
+    ClaimReview,
     CropPlan,
     DomainModel,
     EnrichResult,
@@ -74,6 +75,8 @@ class Snapshot(DomainModel):
     # Indices into understanding.key_moments; empty means every key moment is used.
     moment_selection: tuple[int, ...] = ()
     track_prompt: str | None = None
+    # Owner decisions (accepted/rejected) keyed by claim ID; claims without one are pending.
+    claim_reviews: tuple[ClaimReview, ...] = ()
 
     def selected_moments(self) -> tuple[Moment, ...]:
         if self.understanding is None:

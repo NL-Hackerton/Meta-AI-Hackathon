@@ -104,6 +104,39 @@
 .cv-checks li::before { content: "✓"; display: inline-grid; place-items: center; width: 18px; height: 18px; margin-right: 8px; border-radius: 50%; background: var(--success); color: #fff; font-size: 11px; }
 .cv-checks li.bad { color: var(--danger); }
 .cv-checks li.bad::before { content: "!"; background: var(--danger); }
+
+/* Claim check: what the ad says, with its sources */
+.cv-claims > .hint { margin: -4px 0 12px; }
+.cv-claims > .field { margin-bottom: 4px; max-width: 320px; }
+.cv-claim-list { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 10px; }
+.cv-claim { display: grid; gap: 8px; padding: 12px 14px; border-radius: var(--r-md); background: var(--subtle); box-shadow: inset 0 0 0 1px var(--border); }
+.cv-claim.open { background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--pink); }
+.cv-claim-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cv-claim-head .badge { margin-left: auto; }
+.cv-kind { font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px; }
+.cv-kind.k-explicit { color: #2F55D4; background: #EAF0FF; }
+.cv-kind.k-observation { color: var(--success); background: var(--mint-soft); }
+.cv-kind.k-inference { color: var(--violet); background: var(--violet-soft); }
+.cv-claim-text { margin: 0; font-size: 15px; font-weight: 800; overflow-wrap: anywhere; }
+.cv-evs { display: grid; gap: 6px; }
+.cv-ev { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 13px; }
+.cv-ev-k { font-size: 11px; font-weight: 800; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; }
+.cv-ev small { flex-basis: 100%; font-size: 12px; font-weight: 700; }
+.cv-quote { color: var(--text-2); overflow-wrap: anywhere; }
+.cv-quote mark { background: var(--yellow-soft); color: var(--text); font-weight: 800; padding: 0 2px; border-radius: 3px; box-shadow: inset 0 -2px 0 var(--warning); }
+.cv-quote.bad { text-decoration: line-through; color: var(--text-3); }
+.cv-seek { font-variant-numeric: tabular-nums; }
+.cv-nosrc { margin: 0; }
+.cv-claim-issues { margin: 0; padding-left: 18px; color: var(--danger); font-size: 13px; font-weight: 700; display: grid; gap: 2px; }
+.cv-claim-fix { margin: 0; padding: 8px 10px; border-radius: var(--r-sm); background: var(--pink-soft); color: var(--danger); font-size: 13px; font-weight: 700; }
+.cv-claim-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.cv-decide { display: inline-flex; gap: 8px; }
+.cv-decide .btn { min-width: 92px; min-height: 36px; }
+.cv-decide .cv-accepted[aria-pressed="true"] { background: var(--success); color: #fff; box-shadow: none; }
+.cv-decide .cv-rejected[aria-pressed="true"] { background: var(--danger); color: #fff; box-shadow: none; }
+.cv-claim-why { margin: 0 0 12px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--pink-soft); color: var(--danger); font-size: 13px; font-weight: 700; }
+.cv-claim-why .cv-link { color: var(--danger); text-decoration: underline; }
+.cv-notrue ul { margin: 2px 0; padding-left: 18px; color: var(--text); font-weight: 700; }
 .cv-grab { display: none; }
 .cv-journal { list-style: none; padding: 0; margin: 0 0 14px; display: grid; gap: 10px; }
 .cv-journal li { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: center; }
@@ -179,6 +212,7 @@
   .cv-review .cv-o-warn { order: 2; }
   .cv-review .cv-o-copy { order: 3; }
   .cv-review .cv-o-panel { order: 4; }
+  .cv-review .cv-o-claims { order: 4; }
   .cv-review .cv-o-source { order: 5; }
   .cv-review .cv-o-warn:empty { display: none; }
   .cv-variants .variants { grid-template-columns: repeat(2, minmax(0, 1fr)); }
