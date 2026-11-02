@@ -20,6 +20,7 @@ from adloom.schemas import (
     DomainModel,
     EnrichResult,
     ErrorDetail,
+    ExecutionMode,
     JobManifest,
     JobState,
     MediaInfo,
@@ -169,7 +170,13 @@ class JobStore:
             raise AdLoomError("E_STATE_CONFLICT", "input", "Manifest digest mismatch")
         return Snapshot.model_validate_json(path.read_bytes())
 
-    def create(self, brief: Brief, media: MediaInfo, job_id: str | None = None) -> JobManifest:
+    def create(
+        self,
+        brief: Brief,
+        media: MediaInfo,
+        job_id: str | None = None,
+        mode: ExecutionMode = "fixture",
+    ) -> JobManifest:
         identifier = job_id or uuid4().hex
         if self.path(identifier, "job.json").exists():
             raise AdLoomError("E_STATE_CONFLICT", "input", "Job already exists")
@@ -180,7 +187,7 @@ class JobStore:
             job_id=identifier,
             revision=1,
             manifest_seq=1,
-            execution_mode="fixture",
+            execution_mode=mode,
             state="CREATED",
             last_success_state="CREATED",
             run_state="IDLE",

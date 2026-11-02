@@ -2,13 +2,32 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from adloom.adapters.base import UnderstandingAdapter
+from adloom.adapters.base import UnderstandingAdapter, release_uploads
 from adloom.config import ALLOWED_CTAS, AdLoomError
 from adloom.policy import check, understanding_fields
 from adloom.schemas import Understanding
 
 
 def understand(
+    video: Path,
+    note_text: str,
+    language: str,
+    adapter: UnderstandingAdapter,
+    warnings: list[str] | None = None,
+) -> Understanding:
+    """Ask the adapter for an understanding; uploaded files are released either way.
+
+    Cleanup problems are appended to ``warnings`` and never change the outcome.
+    """
+    try:
+        return _understand(video, note_text, language, adapter)
+    finally:
+        leftover = release_uploads(adapter, "understand")
+        if warnings is not None:
+            warnings.extend(leftover)
+
+
+def _understand(
     video: Path, note_text: str, language: str, adapter: UnderstandingAdapter
 ) -> Understanding:
     feedback: str | None = None

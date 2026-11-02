@@ -1,5 +1,6 @@
 """Shared synchronous commands for the local, explicitly offline AdLoom workflow."""
 
+import json
 import shutil
 import subprocess
 import unicodedata
@@ -11,7 +12,7 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from adloom.adapters.base import get_adapters
-from adloom.config import AdLoomError, Settings
+from adloom.config import AdLoomError, Settings, require_live_ready
 from adloom.jobs import NEXT_STAGE, JobStore, atomic_write
 from adloom.policy import check, understanding_fields
 from adloom.schemas import (
@@ -29,10 +30,10 @@ from adloom.stages.input import fill_note, normalize
 from adloom.stages.publish import (
     abandon,
     approve,
-    fixture_publish_plan,
     make_subject,
     operations,
     publish,
+    publish_plan,
     unresolved,
 )
 from adloom.stages.track import track
@@ -41,9 +42,32 @@ from adloom.stages.understand import understand
 NOTE_AUDIO_SUFFIXES = frozenset({".webm", ".ogg", ".m4a", ".mp4", ".wav", ".mp3"})
 
 
+def _check_mode(settings: Settings, head: JobManifest) -> None:
+    """Fixture and live artifacts never mix: a job only runs in the mode it was created in."""
+    if head.execution_mode != settings.mode:
+        raise AdLoomError(
+            "E_STATE_CONFLICT",
+            head.pending_stage or "input",
+            f"This is a {head.execution_mode} job; it cannot run in {settings.mode} mode",
+        )
+    require_live_ready(settings, head.pending_stage or "input")
+
+
+def _record_cleanup(store: JobStore, job_id: str, warnings: list[str]) -> None:
+    """Persist Model Files cleanup failures so the owner can delete leftovers by hand."""
+    if not warnings:
+        return
+    path = store.path(job_id, "cleanup_warnings.json")
+    previous: list[str] = json.loads(path.read_bytes()) if path.is_file() else []
+    atomic_write(path, json.dumps([*previous, *warnings], ensure_ascii=False).encode())
+
+
 def _run(settings: Settings, store: JobStore, head: JobManifest) -> JobManifest:
+    _check_mode(settings, head)
     root = store.path(head.job_id)
     adapters = get_adapters(settings, root)
+    mode = settings.mode
+    cleanup: list[str] = []
     if head.state == "FAILED":
         if head.failed_stage == "publish":
             return publish(store, head, adapters.marketing)
@@ -72,18 +96,26 @@ def _run(settings: Settings, store: JobStore, head: JobManifest) -> JobManifest:
                 )
             brief = snapshot.brief
             stage = "understand"
-            result = understand(
-                root / "input/source.mp4", brief.note_text or "", brief.language, adapters.spark
-            )
+            try:
+                result = understand(
+                    root / "input/source.mp4",
+                    brief.note_text or "",
+                    brief.language,
+                    adapters.spark,
+                    cleanup,
+                )
+            finally:
+                _record_cleanup(store, head.job_id, cleanup)
+                cleanup.clear()
             if result.source_duration_us != snapshot.media.duration_us:
                 raise AdLoomError(
-                    "E_API_SCHEMA", stage, "Fixture duration differs from normalized video"
+                    "E_API_SCHEMA", stage, "Understanding duration differs from normalized video"
                 )
             origin = Provenance(
-                mode="fixture",
+                mode=mode,
                 stage=stage,
                 kind="provider",
-                model="muse-spark-1.3",
+                model=settings.spark_model,
                 capture_id=snapshot.media.source_sha256,
             )
             snapshot = snapshot.model_copy(
@@ -93,7 +125,9 @@ def _run(settings: Settings, store: JobStore, head: JobManifest) -> JobManifest:
                     "provenance": (*snapshot.provenance, origin),
                 }
             )
-            snapshot = snapshot.model_copy(update={"publish_plan": fixture_publish_plan(snapshot)})
+            snapshot = snapshot.model_copy(
+                update={"publish_plan": publish_plan(snapshot, settings)}
+            )
             atomic_write(root / "understanding.json", result.model_dump_json().encode())
             head = store.transition(head, "UNDERSTOOD", snapshot)
         if head.state == "UNDERSTOOD":
@@ -101,9 +135,15 @@ def _run(settings: Settings, store: JobStore, head: JobManifest) -> JobManifest:
             assert snapshot.understanding is not None
             prompt = snapshot.tracking_prompt()
             assert prompt is not None
-            tracked, crops = track(root / snapshot.brief.video_path, prompt, adapters.sam)
+            try:
+                tracked, crops = track(
+                    root / snapshot.brief.video_path, prompt, adapters.sam, cleanup
+                )
+            finally:
+                _record_cleanup(store, head.job_id, cleanup)
+                cleanup.clear()
             origin = Provenance(
-                mode="fixture",
+                mode=mode,
                 stage=stage,
                 kind="provider",
                 model="sam-3.1",
@@ -128,13 +168,16 @@ def _run(settings: Settings, store: JobStore, head: JobManifest) -> JobManifest:
                 root,
                 adapters.image,
                 adapters.voice,
+                mode,
             )
             origin = Provenance(
-                mode="fixture",
+                mode=mode,
                 stage=stage,
                 kind="local_fallback" if enrichment.image_fallback else "provider",
                 model="muse-image-1.0",
-                capture_id="synthetic-image",
+                capture_id=(
+                    "synthetic-image" if mode == "fixture" else enrichment.thumbnails[0].sha256
+                ),
                 reason="Image failure" if enrichment.image_fallback else None,
             )
             snapshot = snapshot.model_copy(
@@ -144,7 +187,7 @@ def _run(settings: Settings, store: JobStore, head: JobManifest) -> JobManifest:
             head = store.transition(head, "ENRICHED", snapshot)
         if head.state == "ENRICHED":
             stage = "assemble"
-            snapshot = assemble(root, snapshot, head.revision)
+            snapshot = assemble(root, snapshot, head.revision, mode)
             head = store.transition(head, "RENDERED", snapshot)
         if head.state == "RENDERED":
             head = store.transition(head, "AWAITING_APPROVAL", snapshot)
@@ -173,6 +216,9 @@ def run_file(
     language: Literal["ko", "en"] = "ko",
 ) -> JobManifest:
     """Create a job and run it. An audio-only explanation stops at note review."""
+    require_live_ready(settings)
+    if settings.mode == "live" and destination is None:
+        raise AdLoomError("E_INPUT_INVALID", "input", "Live jobs require a destination URL")
     store = JobStore(settings.data_dir)
     with store.execution_lock():
         if not video.is_file() or video.suffix.lower() not in {".mp4", ".mov"}:
@@ -209,7 +255,7 @@ def run_file(
                     )
                 shutil.copyfile(note_audio, root / f"input/note{audio_suffix}")
             media = normalize(root / "input/source.mp4", root / brief.video_path)
-            head = store.create(brief, media, job_id)
+            head = store.create(brief, media, job_id, mode=settings.mode)
         except BaseException:
             # No job record exists yet; do not leave a copy of the customer's video behind.
             shutil.rmtree(root, ignore_errors=True)
@@ -230,8 +276,15 @@ def inspect_job(settings: Settings, job_id: str) -> dict[str, object]:
     result: dict[str, object] = {
         "job": head.model_dump(mode="json"),
         "snapshot": snapshot.model_dump(mode="json"),
-        "notice": "Fixture mode: no model inference or real ads",
+        "notice": (
+            "Fixture mode: no model inference or real ads"
+            if head.execution_mode == "fixture"
+            else "Live mode: model inference and paused Meta ads"
+        ),
     }
+    warnings_path = store.path(job_id, "cleanup_warnings.json")
+    if warnings_path.is_file():
+        result["cleanup_warnings"] = json.loads(warnings_path.read_bytes())
     if snapshot.render_plan is not None:
         try:
             subject = make_subject(store, head, snapshot)
@@ -258,9 +311,9 @@ def approve_job(
 def publish_job(settings: Settings, job_id: str) -> JobManifest:
     store = JobStore(settings.data_dir)
     with store.execution_lock():
-        return publish(
-            store, store.load(job_id), get_adapters(settings, store.path(job_id)).marketing
-        )
+        head = store.load(job_id)
+        _check_mode(settings, head)
+        return publish(store, head, get_adapters(settings, store.path(job_id)).marketing)
 
 
 def edit_job(

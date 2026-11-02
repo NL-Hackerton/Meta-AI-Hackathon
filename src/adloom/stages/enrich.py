@@ -6,7 +6,14 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from adloom.adapters.base import ImageAdapter, VoiceAdapter
 from adloom.config import ASPECTS, FONT_PATH, SAFE_BOTTOM, SAFE_TOP, AdLoomError
 from adloom.jobs import file_hash
-from adloom.schemas import AspectImage, EnrichResult, MediaInfo, Understanding, resolution
+from adloom.schemas import (
+    AspectImage,
+    EnrichResult,
+    ExecutionMode,
+    MediaInfo,
+    Understanding,
+    resolution,
+)
 
 
 def text_image(text: str, size: tuple[int, int], *, bottom: bool = False) -> Image.Image:
@@ -50,6 +57,7 @@ def enrich(
     job_dir: Path,
     image: ImageAdapter,
     voice: VoiceAdapter,
+    mode: ExecutionMode = "fixture",
 ) -> EnrichResult:
     directory = job_dir / "enrichment"
     directory.mkdir(parents=True, exist_ok=True)
@@ -108,7 +116,7 @@ def enrich(
                 aspect=aspect,
                 path=thumbnail.relative_to(job_dir).as_posix(),
                 sha256=file_hash(thumbnail),
-                origin_mode="fixture",
+                origin_mode=mode,
             )
         )
         endcards.append(
@@ -116,7 +124,7 @@ def enrich(
                 aspect=aspect,
                 path=endcard.relative_to(job_dir).as_posix(),
                 sha256=file_hash(endcard),
-                origin_mode="fixture",
+                origin_mode=mode,
             )
         )
     if fallback:

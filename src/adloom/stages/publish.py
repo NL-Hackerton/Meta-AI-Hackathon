@@ -1,4 +1,4 @@
-"""Approval-bound, journaled publishing. All resources here are fixture resources."""
+"""Approval-bound, journaled publishing. Every resource is created PAUSED."""
 
 import hashlib
 import json
@@ -6,8 +6,10 @@ import re
 from datetime import UTC, datetime
 from typing import Literal
 
+from pydantic import ValidationError
+
 from adloom.adapters.base import MarketingPublisher, PublishNotSent
-from adloom.config import AdLoomError
+from adloom.config import AdLoomError, Settings
 from adloom.jobs import JobStore, Snapshot, atomic_write, file_hash
 from adloom.policy import POLICY_DIGEST, check, understanding_fields
 from adloom.schemas import (
@@ -27,6 +29,14 @@ from adloom.schemas import (
 Resource = Literal["video", "image", "creative", "campaign", "adset", "ad"]
 
 
+PROFILE = MarketingProfile(
+    objective="OUTCOME_TRAFFIC",
+    optimization_goal="LINK_CLICKS",
+    billing_event="IMPRESSIONS",
+    allowed_ctas=("LEARN_MORE",),
+)
+
+
 def fixture_publish_plan(snapshot: Snapshot) -> PublishPlan:
     if snapshot.understanding is None:
         raise AdLoomError("E_STATE_CONFLICT", "publish", "Understanding is required")
@@ -38,13 +48,44 @@ def fixture_publish_plan(snapshot: Snapshot) -> PublishPlan:
         daily_budget_krw=snapshot.brief.daily_budget_krw,
         destination_url=snapshot.brief.destination_url,
         cta=snapshot.understanding.cta,
-        profile=MarketingProfile(
-            objective="OUTCOME_TRAFFIC",
-            optimization_goal="LINK_CLICKS",
-            billing_event="IMPRESSIONS",
-            allowed_ctas=("LEARN_MORE",),
-        ),
+        profile=PROFILE,
     )
+
+
+def live_publish_plan(snapshot: Snapshot, settings: Settings) -> PublishPlan:
+    """Plan for the configured Meta account; the approval digest covers every value."""
+    if snapshot.understanding is None:
+        raise AdLoomError("E_STATE_CONFLICT", "publish", "Understanding is required")
+    account, page, version = (
+        settings.meta_ad_account_id,
+        settings.meta_page_id,
+        settings.meta_graph_version,
+    )
+    if settings.mode != "live" or account is None or page is None or version is None:
+        raise AdLoomError("E_API_AUTH", "publish", "Live publishing settings are incomplete")
+    if snapshot.brief.destination_url is None:
+        raise AdLoomError(
+            "E_INPUT_INVALID", "publish", "Live publishing requires a destination URL"
+        )
+    try:
+        return PublishPlan(
+            execution_mode="live",
+            account_id=account.removeprefix("act_"),
+            page_id=page,
+            graph_version=version,
+            daily_budget_krw=snapshot.brief.daily_budget_krw,
+            destination_url=snapshot.brief.destination_url,
+            cta=snapshot.understanding.cta,
+            profile=PROFILE,
+        )
+    except ValidationError:
+        raise AdLoomError("E_API_AUTH", "publish", "Live publishing settings are invalid") from None
+
+
+def publish_plan(snapshot: Snapshot, settings: Settings) -> PublishPlan:
+    if settings.mode == "live":
+        return live_publish_plan(snapshot, settings)
+    return fixture_publish_plan(snapshot)
 
 
 def make_subject(store: JobStore, head: JobManifest, snapshot: Snapshot) -> ApprovalSubject:
@@ -273,8 +314,10 @@ def publish(store: JobStore, head: JobManifest, adapter: MarketingPublisher) -> 
     if head.state == "PUBLISHED_PAUSED":
         return head
     plan = subject.publish_plan
-    if plan.execution_mode != "fixture":
-        raise AdLoomError("E_API_AUTH", "publish", "Live publishing requires H3 approval")
+    if plan.execution_mode != head.execution_mode:
+        raise AdLoomError("E_STATE_CONFLICT", "publish", "Publish plan mode differs from the job")
+    enrichment = snapshot.enrichment
+    assert enrichment is not None  # make_subject requires it
     head = store.start_run(head, "publish")
     try:
         campaign = _operation(
@@ -303,14 +346,21 @@ def publish(store: JobStore, head: JobManifest, adapter: MarketingPublisher) -> 
                 "targeting": {"geo_locations": {"countries": ["KR"]}},
             },
         )
-        thumbnail = next(i for i in subject.thumbnails if i.aspect == "9:16")
-        image = _operation(store, head, adapter, "image", {"sha256": thumbnail.sha256})
+        thumbnail = next(i for i in enrichment.thumbnails if i.aspect == "9:16")
+        image = _operation(
+            store, head, adapter, "image", {"sha256": thumbnail.sha256, "path": thumbnail.path}
+        )
         ads = []
-        for variant in subject.variants:
+        for variant in sorted(snapshot.variants, key=lambda v: (v.aspect, v.hook_id)):
             if variant.aspect != "9:16":
                 continue
             video = _operation(
-                store, head, adapter, "video", {"sha256": variant.sha256}, variant.hook_id
+                store,
+                head,
+                adapter,
+                "video",
+                {"sha256": variant.sha256, "path": variant.path},
+                variant.hook_id,
             )
             creative = _operation(
                 store,
@@ -349,7 +399,7 @@ def publish(store: JobStore, head: JobManifest, adapter: MarketingPublisher) -> 
         result = PublishResult(
             job_id=head.job_id,
             revision=head.revision,
-            execution_mode="fixture",
+            execution_mode=plan.execution_mode,
             campaign_id=campaign,
             adset_id=adset,
             campaign_status="PAUSED",

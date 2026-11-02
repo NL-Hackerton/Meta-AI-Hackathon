@@ -8,6 +8,7 @@ from adloom.config import FONT_PATH, AdLoomError
 from adloom.jobs import file_hash
 from adloom.schemas import (
     CropPlan,
+    ExecutionMode,
     Hook,
     MediaInfo,
     Moment,
@@ -116,7 +117,13 @@ def frame_hash(path: Path) -> str:
     return hashlib.sha256(result.stdout).hexdigest()
 
 
-def render_variant(root: Path, plan: RenderPlan, crop: CropPlan, hook: Hook) -> RenderedVariant:
+def render_variant(
+    root: Path,
+    plan: RenderPlan,
+    crop: CropPlan,
+    hook: Hook,
+    mode: ExecutionMode = "fixture",
+) -> RenderedVariant:
     root = root.resolve()
     output_dir = root / "renders" / f"r{plan.revision:06d}"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -278,11 +285,13 @@ def render_variant(root: Path, plan: RenderPlan, crop: CropPlan, hook: Hook) -> 
         duration_us=plan.timeline.duration_us,
         width=width,
         height=height,
-        origin_mode="fixture",
+        origin_mode=mode,
     )
 
 
-def render(root: Path, plan: RenderPlan) -> tuple[RenderedVariant, ...]:
+def render(
+    root: Path, plan: RenderPlan, mode: ExecutionMode = "fixture"
+) -> tuple[RenderedVariant, ...]:
     if (
         file_hash(FONT_PATH) != plan.font_sha256
         or renderer_fingerprint() != plan.renderer_fingerprint
@@ -292,5 +301,7 @@ def render(root: Path, plan: RenderPlan) -> tuple[RenderedVariant, ...]:
         if file_hash(_local(root, source.path)) != source.sha256:
             raise AdLoomError("E_RENDER_FAILED", "assemble", "Render source digest mismatch")
     return tuple(
-        render_variant(root, plan, crop, hook) for crop in plan.crop_plans for hook in plan.hooks
+        render_variant(root, plan, crop, hook, mode)
+        for crop in plan.crop_plans
+        for hook in plan.hooks
     )

@@ -3,10 +3,12 @@ from pathlib import Path
 from adloom.config import FONT_PATH, AdLoomError
 from adloom.jobs import Snapshot, file_hash
 from adloom.render import plan_timeline, render, renderer_fingerprint
-from adloom.schemas import RenderPlan, RenderSource
+from adloom.schemas import ExecutionMode, RenderPlan, RenderSource
 
 
-def assemble(root: Path, snapshot: Snapshot, revision: int) -> Snapshot:
+def assemble(
+    root: Path, snapshot: Snapshot, revision: int, mode: ExecutionMode = "fixture"
+) -> Snapshot:
     understanding, enrichment = snapshot.understanding, snapshot.enrichment
     if understanding is None or enrichment is None or len(snapshot.crops) != 3:
         raise AdLoomError(
@@ -36,4 +38,4 @@ def assemble(root: Path, snapshot: Snapshot, revision: int) -> Snapshot:
         hooks=(understanding.hook_candidates[0], understanding.hook_candidates[1]),
         enrichment=enrichment,
     )
-    return snapshot.model_copy(update={"render_plan": plan, "variants": render(root, plan)})
+    return snapshot.model_copy(update={"render_plan": plan, "variants": render(root, plan, mode)})
