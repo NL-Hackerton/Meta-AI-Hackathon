@@ -71,3 +71,33 @@ def test_edit_refreshes_policy_for_review_and_approval(tmp_path, rendered_case):
     corrected = inspect_job(settings, head.job_id)
     assert corrected["snapshot"]["understanding"]["policy_flags"] == []
     assert corrected["approval_issues"] == []
+
+
+def test_cli_audio_note_stops_for_review_until_confirmed(tmp_path):
+    env = {**os.environ, "ADLOOM_LIVE": "0", "ADLOOM_DATA_DIR": str(tmp_path)}
+
+    def cli(*args):
+        result = subprocess.run(
+            [sys.executable, "-m", "adloom", *args], env=env, capture_output=True, text=True
+        )
+        assert result.returncode == 0, result.stderr
+        return json.loads(result.stdout)
+
+    created = cli(
+        "run",
+        "--video",
+        "tests/fixtures/sample.mp4",
+        "--note-audio",
+        "tests/fixtures/voice/note-sample.wav",
+        "--region",
+        "서울",
+        "--budget",
+        "10000",
+    )
+    assert created["state"] == "CREATED" and created["note_status"] == "REVIEW_REQUIRED"
+    review = cli("inspect", created["job_id"])
+    assert review["snapshot"]["note_proposal"] == "합성 샘플 음성 설명"
+    assert review["snapshot"]["brief"]["note_audio_path"] == "input/note.wav"
+    assert cli("resume", created["job_id"])["state"] == "CREATED"
+    confirmed = cli("confirm-note", created["job_id"], "--text", "합성 샘플 음성 설명")
+    assert confirmed["state"] == "AWAITING_APPROVAL" and confirmed["note_status"] == "CONFIRMED"

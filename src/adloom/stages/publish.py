@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -139,6 +140,56 @@ def approve(
     )
 
 
+def operations(store: JobStore, job_id: str) -> list[PublishOperation]:
+    return sorted(
+        (
+            PublishOperation.model_validate_json(path.read_bytes())
+            for path in store.path(job_id, "publish").glob("*.json")
+        ),
+        key=lambda operation: operation.operation_key,
+    )
+
+
+def unresolved(operation: PublishOperation) -> bool:
+    return operation.phase in {"PREPARED", "UNKNOWN"} and not operation.abandoned
+
+
+def abandon(store: JobStore, head: JobManifest, operation_key: str, actor: str) -> JobManifest:
+    """Record the owner's decision to stop retrying an operation whose outcome is unknown.
+
+    The request is never resent; the job stays FAILED at publish and cannot publish again.
+    """
+    if not operation_key.startswith(f"{head.job_id}.") or not re.fullmatch(
+        r"[A-Za-z0-9_.-]+", operation_key
+    ):
+        raise AdLoomError("E_INPUT_INVALID", "publish", "Unknown publish operation")
+    path = store.path(head.job_id, f"publish/{operation_key}.json")
+    if not path.is_file():
+        raise AdLoomError("E_INPUT_INVALID", "publish", "Unknown publish operation")
+    operation = PublishOperation.model_validate_json(path.read_bytes())
+    if operation.operation_key != operation_key or not unresolved(operation):
+        raise AdLoomError(
+            "E_STATE_CONFLICT", "publish", "Only an unresolved publish request can be abandoned"
+        )
+    marked = PublishOperation.model_validate(
+        {**operation.model_dump(), "abandoned": True, "resolution_actor": actor}
+    )
+    atomic_write(path, marked.model_dump_json().encode())
+    error = AdLoomError(
+        "E_STATE_CONFLICT", "publish", "Publishing was abandoned; start a new job"
+    ).error
+    return store.commit(
+        head,
+        store.snapshot(head),
+        state="FAILED",
+        failed_stage="publish",
+        pending_stage="publish",
+        error=error,
+        run_state="IDLE",
+        active_run_id=None,
+    )
+
+
 def _operation(
     store: JobStore,
     head: JobManifest,
@@ -201,6 +252,10 @@ def _operation(
 
 
 def publish(store: JobStore, head: JobManifest, adapter: MarketingPublisher) -> JobManifest:
+    if any(operation.abandoned for operation in operations(store, head.job_id)):
+        raise AdLoomError(
+            "E_STATE_CONFLICT", "publish", "Publishing was abandoned; start a new job"
+        )
     if head.state == "FAILED" and head.failed_stage == "publish":
         head = store.resume(head)
     if head.state not in {"APPROVED", "PUBLISHED_PAUSED"} or head.approval_ref is None:

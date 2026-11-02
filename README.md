@@ -58,6 +58,8 @@ uv run --locked python -m adloom.web
 
 `http://127.0.0.1:8000`에서 연다. `ADLOOM_HOST`·`ADLOOM_PORT`로 주소를 바꾸고 `ADLOOM_DATA_DIR`로 작업 저장 위치를 지정한다. 기본 주소는 loopback이며 인증이 없으므로 외부에 공개하지 않는다. 웹 경로도 CLI와 같은 `pipeline` 명령을 사용한다. 승인 기록은 `channel: "web"`으로 남고, 승인 fingerprint가 현재 내용과 다르면 `E_REVISION_CONFLICT`로 거부한다. 업로드 원본은 작업 폴더로 복사한 직후 임시 파일을 지운다. mock 이해 fixture가 SHA-256에 묶여 있으므로 지금은 `tests/fixtures/sample.mp4`만 끝까지 처리된다.
 
+화면은 하나의 반응형 앱이다. 960px 이하에서는 하단 탭(Home, My ads, 새 작업, Approve, MY)을 쓴다. 제공 화면은 Home, Welcome, 사업자 프로필, Meta 연결 상태, 새 작업(길이 사전 검사, 글 또는 음성 설명), 설명 확인, 검토·승인(원본 위 추적 박스와 3비율 크롭 표시), 편집(문구·추적 대상·사용 장면), 게시 진행·결과 불명 처리, 승인 대기, 내 광고·광고 상세, MY, 데이터 삭제, 알림, 게시 기록, 설정이다. 로그인과 실제 Meta 계정 연결은 H3 전이라 만들지 않았고, Meta 연결 화면은 미연결 상태와 필요한 권한만 보여 준다. 음성 설명은 전사 결과를 사람이 확인한 뒤에만 사용한다(`confirm-note`). fixture 모드에는 `tests/fixtures/voice/note-sample.wav`의 전사만 있으므로 다른 녹음은 실패하고, 이때는 설명을 직접 입력해 이어 간다. CLI의 `run --note-audio`도 전사 확인 대기에서 멈추며 `python -m adloom confirm-note JOB_ID --text "…"`로 이어 간다.
+
 ## 읽는 순서
 
 1. [BMAD kernel](_bmad-output/specs/spec-adloom/SPEC.md): 기존 8개 capability를 유지하고 원본 연결·제한 편집 CAP-9를 추가했다.

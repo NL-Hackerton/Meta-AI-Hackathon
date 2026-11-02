@@ -31,7 +31,7 @@ def assemble(root: Path, snapshot: Snapshot, revision: int) -> Snapshot:
         ),
         font_sha256=file_hash(FONT_PATH),
         renderer_fingerprint=renderer_fingerprint(),
-        timeline=plan_timeline(snapshot.media, understanding.key_moments),
+        timeline=plan_timeline(snapshot.media, snapshot.selected_moments()),
         crop_plans=(snapshot.crops[0], snapshot.crops[1], snapshot.crops[2]),
         hooks=(understanding.hook_candidates[0], understanding.hook_candidates[1]),
         enrichment=enrichment,

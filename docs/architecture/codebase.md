@@ -126,7 +126,7 @@ publish는 immutable approved snapshot과 업로드 직전 hash를 확인한 같
 
 ## 5. API·CLI 공용 명령 계약
 
-아래 endpoint는 설계다. 2026-11-02 구현한 로컬 웹은 이 중 일부를 동기 요청으로 제공한다: `GET/POST /api/jobs`(업로드 후 같은 요청에서 mock 파이프라인 실행), `GET /api/jobs/:id`, `POST /api/jobs/:id/{approve,publish,edit,resume}`, 검토용 미디어 `GET /api/jobs/:id/files/{renders,enrichment,images}/…`(Range 지원). session 대신 loopback Host 허용목록, 쓰기 요청의 `X-AdLoom-Request: 1` 헤더·Origin 일치, Content-Length 257MiB 사전 검사로 교차 사이트 쓰기를 403/413으로 거부한다. 승인은 화면에서 본 `content_digest`를 보내며 다르면 409다. 응답은 `{job, revision, manifest_seq, state, run_state, ...}`를 포함한다. 설계의 쓰기 요청은 session/CSRF와 명시 base 값을 검증한다.
+아래 endpoint는 설계다. 2026-11-02 구현한 로컬 웹은 이 중 일부를 동기 요청으로 제공한다: `GET/POST /api/jobs`(업로드 후 같은 요청에서 mock 파이프라인 실행, 음성만 있으면 전사 확인 대기에서 멈춤), `GET/DELETE /api/jobs/:id`, `POST /api/jobs/:id/{approve,publish,edit,resume,confirm-note}`, `POST /api/jobs/:id/publish/abandon`, `GET/PUT /api/profile`, `GET /api/notifications`, `GET /api/status`, 검토용 미디어 `GET /api/jobs/:id/files/{renders,enrichment,images}/…`와 `input/normalized.mp4`(Range 지원). edit는 문구 외에 `moments`(사용할 key moment 색인)와 `product`(추적 대상 문구)를 받아 §4.1 표대로 assemble 또는 track부터 다시 실행한다. session 대신 loopback Host 허용목록, 쓰기 요청의 `X-AdLoom-Request: 1` 헤더·Origin 일치, Content-Length 257MiB 사전 검사로 교차 사이트 쓰기를 403/413으로 거부한다. 승인은 화면에서 본 `content_digest`를 보내며 다르면 409다. 설계의 쓰기 요청은 session/CSRF와 명시 base 값을 검증한다.
 
 | HTTP | 공용 command | 결과 |
 | --- | --- | --- |

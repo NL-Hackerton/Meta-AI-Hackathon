@@ -1,5 +1,6 @@
 "use strict";
 import { api, app, esc, errorText } from "./core.js";
+import { refreshBell } from "./notify.js";
 
 // Each route: pattern segments (":name" captures), module path, exported view function.
 const ROUTES = [
@@ -44,6 +45,7 @@ async function route() {
     app.innerHTML = `<div class="card empty"><b>Could not load this page</b><span class="hint">${esc(errorText(err))}</span><a class="btn light" href="#/">Back to home</a></div>`;
   }
   window.scrollTo(0, 0);
+  refreshBell();
 }
 
 window.addEventListener("hashchange", route);

@@ -10,7 +10,15 @@ from pydantic import ValidationError
 
 from adloom.config import AdLoomError, load_config
 from adloom.jobs import JobStore
-from adloom.pipeline import approve_job, edit_job, inspect_job, publish_job, resume_job, run_file
+from adloom.pipeline import (
+    approve_job,
+    confirm_note,
+    edit_job,
+    inspect_job,
+    publish_job,
+    resume_job,
+    run_file,
+)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -24,7 +32,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     run.add_argument("--budget", required=True, type=int)
     run.add_argument("--destination")
     commands.add_parser("list", help="List local jobs, including failed runs")
-    for command in ("inspect", "resume", "approve", "publish", "edit"):
+    for command in ("inspect", "resume", "approve", "publish", "edit", "confirm-note"):
         sub = commands.add_parser(command)
         sub.add_argument("job_id")
         if command == "approve":
@@ -37,6 +45,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             sub.add_argument("--hook-b")
             sub.add_argument("--primary-text")
             sub.add_argument("--headline")
+        if command == "confirm-note":
+            sub.add_argument("--text", required=True, help="Confirmed explanation, 1-200 chars")
     args = parser.parse_args(argv)
     try:
         settings = load_config()
@@ -66,6 +76,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif args.command == "publish":
             result = publish_job(settings, args.job_id).model_dump(mode="json")
+        elif args.command == "confirm-note":
+            result = confirm_note(settings, args.job_id, args.text).model_dump(mode="json")
         else:
             result = edit_job(
                 settings,

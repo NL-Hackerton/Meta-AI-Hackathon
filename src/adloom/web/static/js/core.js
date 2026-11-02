@@ -12,6 +12,9 @@ export const STATE = {
   FAILED: ["Failed", "b-danger"],
 };
 export const stateBadge = (s) => { const [label, cls] = STATE[s] || ["Making", "b-progress"]; return `<span class="badge ${cls}">${label}</span>`; };
+export const NOTE_PENDING = ["AUDIO_PENDING", "REVIEW_REQUIRED"];
+export const needsNote = (job) => NOTE_PENDING.includes(job.note_status) && (job.state === "CREATED" || (job.state === "FAILED" && job.failed_stage === "input"));
+export const jobBadge = (job) => needsNote(job) ? `<span class="badge b-warn">Check description</span>` : stateBadge(job.state);
 export const PHASE = { CONFIRMED: ["Confirmed", "b-done"], PREPARED: ["Unknown", "b-danger"], UNKNOWN: ["Unknown", "b-danger"], FAILED: ["Failed · not sent", "b-warn"] };
 export const RESOURCE = { campaign: "Campaign", adset: "Ad set", image: "Thumbnail", video: "Video", creative: "Creative", ad: "Ad" };
 export const resourceName = (op) => RESOURCE[op.resource_kind] + (op.hook_id ? ` · Hook ${op.hook_id.toUpperCase()}` : "");

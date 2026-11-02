@@ -2,6 +2,8 @@
 
 import shutil
 import subprocess
+import unicodedata
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
@@ -12,13 +14,31 @@ from adloom.adapters.base import get_adapters
 from adloom.config import AdLoomError, Settings
 from adloom.jobs import JobStore, atomic_write
 from adloom.policy import check, understanding_fields
-from adloom.schemas import Brief, JobManifest, Provenance, Stage, Understanding, approval_issues
+from adloom.schemas import (
+    Brief,
+    JobManifest,
+    JobState,
+    Provenance,
+    Stage,
+    Understanding,
+    approval_issues,
+)
 from adloom.stages.assemble import assemble
 from adloom.stages.enrich import enrich
 from adloom.stages.input import fill_note, normalize
-from adloom.stages.publish import approve, fixture_publish_plan, make_subject, publish
+from adloom.stages.publish import (
+    abandon,
+    approve,
+    fixture_publish_plan,
+    make_subject,
+    operations,
+    publish,
+    unresolved,
+)
 from adloom.stages.track import track
 from adloom.stages.understand import understand
+
+NOTE_AUDIO_SUFFIXES = frozenset({".webm", ".ogg", ".m4a", ".mp4", ".wav", ".mp3"})
 
 
 def _run(settings: Settings, store: JobStore, head: JobManifest) -> JobManifest:
@@ -32,7 +52,17 @@ def _run(settings: Settings, store: JobStore, head: JobManifest) -> JobManifest:
     try:
         snapshot = store.snapshot(head)
         if head.state == "CREATED":
-            brief = fill_note(snapshot.brief, root, adapters.voice)
+            if head.note_status == "REVIEW_REQUIRED":
+                return head
+            if head.note_status == "AUDIO_PENDING":
+                # A transcript is only a proposal; the owner confirms it before understanding.
+                proposal = fill_note(snapshot.brief, root, adapters.voice).note_text
+                return store.commit(
+                    head,
+                    snapshot.model_copy(update={"note_proposal": proposal}),
+                    note_status="REVIEW_REQUIRED",
+                )
+            brief = snapshot.brief
             stage = "understand"
             result = understand(
                 root / "input/source.mp4", brief.note_text or "", brief.language, adapters.spark
@@ -61,9 +91,9 @@ def _run(settings: Settings, store: JobStore, head: JobManifest) -> JobManifest:
         if head.state == "UNDERSTOOD":
             stage = "track"
             assert snapshot.understanding is not None
-            tracked, crops = track(
-                root / snapshot.brief.video_path, snapshot.understanding.sam_prompt, adapters.sam
-            )
+            prompt = snapshot.tracking_prompt()
+            assert prompt is not None
+            tracked, crops = track(root / snapshot.brief.video_path, prompt, adapters.sam)
             origin = Provenance(
                 mode="fixture",
                 stage=stage,
@@ -131,20 +161,29 @@ def run_file(
     budget: int,
     note_audio: Path | None = None,
     destination: str | None = None,
+    job_id: str | None = None,
 ) -> JobManifest:
+    """Create a job and run it. An audio-only explanation stops at note review."""
     store = JobStore(settings.data_dir)
     with store.execution_lock():
         if not video.is_file() or video.suffix.lower() not in {".mp4", ".mov"}:
             raise AdLoomError("E_INPUT_INVALID", "input", "Select a local MP4 or MOV file")
         if video.stat().st_size > 256 * 1024 * 1024:
             raise AdLoomError("E_INPUT_INVALID", "input", "Video exceeds 256 MiB")
-        job_id = uuid4().hex
+        audio_suffix = note_audio.suffix.lower() if note_audio is not None else ""
+        if note_audio is not None and audio_suffix not in NOTE_AUDIO_SUFFIXES:
+            raise AdLoomError(
+                "E_INPUT_INVALID",
+                "input",
+                "Explanation audio must be WebM, OGG, M4A, MP4, WAV or MP3",
+            )
+        job_id = job_id or uuid4().hex
         root = store.path(job_id)
         brief = Brief.model_validate(
             {
                 "video_path": "input/normalized.mp4",
                 "note_text": note_text,
-                "note_audio_path": "input/note.wav" if note_audio is not None else None,
+                "note_audio_path": f"input/note{audio_suffix}" if note_audio is not None else None,
                 "region": region,
                 "daily_budget_krw": budget,
                 "destination_url": destination,
@@ -157,7 +196,7 @@ def run_file(
                 raise AdLoomError(
                     "E_INPUT_INVALID", "input", "Select an explanation audio file up to 32 MiB"
                 )
-            shutil.copyfile(note_audio, root / "input/note.wav")
+            shutil.copyfile(note_audio, root / f"input/note{audio_suffix}")
         media = normalize(root / "input/source.mp4", root / brief.video_path)
         head = store.create(brief, media, job_id)
         return _run(settings, store, head)
@@ -217,7 +256,10 @@ def edit_job(
     hook_b: str | None = None,
     primary_text: str | None = None,
     headline: str | None = None,
+    moments: Sequence[int] | None = None,
+    product: str | None = None,
 ) -> JobManifest:
+    """Edit a rendered job. Rolls back to the earliest stage the change invalidates."""
     store = JobStore(settings.data_dir)
     with store.execution_lock():
         head = store.load(job_id)
@@ -229,6 +271,24 @@ def edit_job(
             )
         snapshot = store.snapshot(head)
         assert snapshot.understanding is not None
+        selection = snapshot.moment_selection
+        if moments is not None:
+            count = len(snapshot.understanding.key_moments)
+            chosen = tuple(sorted(set(moments)))
+            if not chosen or len(chosen) != len(moments) or chosen[0] < 0 or chosen[-1] >= count:
+                raise AdLoomError(
+                    "E_INPUT_INVALID", "assemble", "Choose at least one of the listed key moments"
+                )
+            # The full list stays in understanding, so any selection can be undone later.
+            selection = () if chosen == tuple(range(count)) else chosen
+        prompt = snapshot.track_prompt
+        if product is not None:
+            product = unicodedata.normalize("NFC", product).strip()
+            if not 1 <= len(product) <= 80:
+                raise AdLoomError(
+                    "E_INPUT_INVALID", "track", "Describe the product in 1 to 80 characters"
+                )
+            prompt = None if product == snapshot.understanding.sam_prompt else product
         value = snapshot.understanding.model_dump()
         hooks = [hook.model_dump() for hook in snapshot.understanding.hook_candidates]
         for index, text in enumerate((hook_a, hook_b)):
@@ -241,22 +301,87 @@ def edit_job(
             value["headline"] = headline
         changed = Understanding.model_validate(value)
         changed = changed.model_copy(update={"policy_flags": check(understanding_fields(changed))})
-        if changed == snapshot.understanding:
+        rollback: JobState | None = None
+        if changed != snapshot.understanding or selection != snapshot.moment_selection:
+            rollback = "ENRICHED"
+        if prompt != snapshot.track_prompt:
+            rollback = "UNDERSTOOD"
+        if rollback is None:
             return head
-        updated = snapshot.model_copy(
-            update={
-                "understanding": changed,
-                "variants": (),
-                "render_plan": None,
-                "approval_subject": None,
-            }
-        )
+        update: dict[str, object] = {
+            "understanding": changed,
+            "moment_selection": selection,
+            "track_prompt": prompt,
+            "variants": (),
+            "render_plan": None,
+            "approval_subject": None,
+        }
+        if rollback == "UNDERSTOOD":
+            update.update({"track": None, "crops": (), "enrichment": None})
         head = store.commit(
             head,
-            updated,
+            snapshot.model_copy(update=update),
             revision=head.revision + 1,
-            state="ENRICHED",
-            last_success_state="ENRICHED",
+            state=rollback,
+            last_success_state=rollback,
             approval_ref=None,
         )
         return _run(settings, store, head)
+
+
+def confirm_note(settings: Settings, job_id: str, text: str) -> JobManifest:
+    """Owner-confirmed explanation for a job still waiting on its note."""
+    store = JobStore(settings.data_dir)
+    with store.execution_lock():
+        head = store.load(job_id)
+        waiting = head.state == "CREATED" or (
+            head.state == "FAILED"
+            and head.failed_stage == "input"
+            and head.last_success_state == "CREATED"
+        )
+        if head.note_status == "CONFIRMED" or not waiting:
+            raise AdLoomError(
+                "E_STATE_CONFLICT", "input", "This job's explanation is already confirmed"
+            )
+        snapshot = store.snapshot(head)
+        try:
+            brief = Brief.model_validate({**snapshot.brief.model_dump(), "note_text": text})
+        except ValidationError:
+            raise AdLoomError(
+                "E_INPUT_INVALID", "input", "Explanation must be 1 to 200 characters"
+            ) from None
+        if brief.note_text is None or not brief.note_text.strip():
+            raise AdLoomError("E_INPUT_INVALID", "input", "Explanation must not be blank")
+        atomic_write(store.path(job_id, "brief.json"), brief.model_dump_json().encode())
+        head = store.commit(
+            head,
+            snapshot.model_copy(update={"brief": brief}),
+            state="CREATED",
+            note_status="CONFIRMED",
+            failed_stage=None,
+            pending_stage=None,
+            error=None,
+        )
+        return _run(settings, store, head)
+
+
+def abandon_publish(settings: Settings, job_id: str, operation_key: str, actor: str) -> JobManifest:
+    store = JobStore(settings.data_dir)
+    with store.execution_lock():
+        return abandon(store, store.load(job_id), operation_key, actor)
+
+
+def delete_job(settings: Settings, job_id: str) -> None:
+    """Remove a local job. Refused while a publish request outcome is still unknown."""
+    store = JobStore(settings.data_dir)
+    with store.execution_lock():
+        head = store.load(job_id)
+        if head.run_state in {"RUNNING", "CANCEL_REQUESTED"}:
+            raise AdLoomError("E_JOB_BUSY", "input", "The job is running")
+        if any(unresolved(operation) for operation in operations(store, job_id)):
+            raise AdLoomError(
+                "E_STATE_CONFLICT",
+                "publish",
+                "A publish request outcome is unknown; abandon it before deleting",
+            )
+        shutil.rmtree(store.path(job_id))

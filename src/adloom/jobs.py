@@ -22,6 +22,7 @@ from adloom.schemas import (
     JobManifest,
     JobState,
     MediaInfo,
+    Moment,
     Provenance,
     PublishPlan,
     PublishResult,
@@ -57,6 +58,23 @@ class Snapshot(DomainModel):
     publish_plan: PublishPlan | None = None
     approval_subject: ApprovalSubject | None = None
     publish_result: PublishResult | None = None
+    note_proposal: str | None = None
+    # Indices into understanding.key_moments; empty means every key moment is used.
+    moment_selection: tuple[int, ...] = ()
+    track_prompt: str | None = None
+
+    def selected_moments(self) -> tuple[Moment, ...]:
+        if self.understanding is None:
+            return ()
+        moments = self.understanding.key_moments
+        if not self.moment_selection:
+            return moments
+        return tuple(moments[index] for index in self.moment_selection)
+
+    def tracking_prompt(self) -> str | None:
+        if self.track_prompt is not None:
+            return self.track_prompt
+        return self.understanding.sam_prompt if self.understanding is not None else None
 
 
 def file_hash(path: Path) -> str:
