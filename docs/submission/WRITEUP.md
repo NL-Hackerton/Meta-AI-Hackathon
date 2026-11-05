@@ -2,7 +2,7 @@
 
 **One video in, six ad videos out, two paused Meta ads ready for the owner to switch on — and nothing is published until the owner approves the reviewed content.**
 
-Status in one line: the full path runs end to end in fixture mode (mock providers, bundled synthetic clip); the live adapters are built and tested against mocked HTTP only; no live model call and no real ad has been made yet. Verified test results and dates are kept in one place: [README, Project status](../../README.md#project-status).
+The full workflow runs end to end in fixture mode (mock providers, bundled synthetic clip). On 2026-11-05, live authentication, model listing and one minimal Spark text request succeeded. Live video understanding, tracking, image generation, transcription and advertising remain unverified. Test results and dates: [README, Project status](../../README.md#project-status).
 
 Repository README: [../../README.md](../../README.md) · Architecture: [ARCHITECTURE.md](ARCHITECTURE.md) · Demo script: [../demo.md](../demo.md) · Figma: <https://www.figma.com/design/9T5bAydiWPfdhFWNpoiZK5>
 
@@ -50,7 +50,7 @@ The web app (`python -m adloom.web`) has these screens: Home, Welcome and busine
 
 ## How it uses Meta AI
 
-All four models are called through the Meta Model API (`https://api.meta.ai/v1`); ads are created through the Marketing API (Graph API). Everything in this section is implemented and tested against mocked HTTP responses; none of it has been run against the live APIs yet. The model IDs come from Meta's developer documentation ([api notes](../api_notes/verification.md)). Only Standard model IDs are allowed; any other ID, including `-contributor` variants, is refused in code (`require_standard_model()` in `src/adloom/adapters/model_api.py`, `load_config()` in `src/adloom/config.py`).
+The four model adapters target Meta Model API (`https://api.meta.ai/v1`); publishing targets the Marketing API (Graph API). These integrations have mocked-HTTP tests. A live model-list request and minimal text-only `muse-spark-1.3` request succeeded on 2026-11-05; no complete live media workflow or real advertisement has been verified. Only the configured Standard model IDs are allowed; Contributor variants are refused in code.
 
 | Model / API | Job it is designed to do in the AdLoom pipeline | Why this model | Guardrails |
 | --- | --- | --- | --- |
@@ -60,7 +60,7 @@ All four models are called through the Meta Model API (`https://api.meta.ai/v1`)
 | **Muse Voice** `muse-voice-transcribe-1.0` | (1) Transcribes a spoken description when the owner records one instead of typing. (2) Transcribes the video's own audio; the segments become burned-in subtitles. (`src/adloom/adapters/voice.py`, `src/adloom/stages/input.py`, `src/adloom/stages/enrich.py`) | Owners often find it easier to talk than to type, and Meta's Reels guidance assumes sound on; subtitles keep the message readable with sound off. | A transcribed description is shown to the owner and used only after they confirm it. Subtitles are part of the approval fingerprint and of the policy check. |
 | **Marketing API** (Graph API) | Creates, in order: campaign, ad set, thumbnail image, then for each of the two 9:16 variants a video, a creative and an ad. (`src/adloom/stages/publish.py`, `src/adloom/adapters/marketing.py`) | It is how the result lands in the owner's own ad account, ready for Ads Manager. | **PAUSED only:** campaign, ad set and ad are always `PAUSED`; the publisher refuses any other status before sending. **Approval fingerprint:** publishing re-checks that the approval file is intact and that the SHA-256 of the current content equals the approved one. **Journal:** each request is recorded before it is sent and after it returns; a request whose outcome is unknown is never re-sent automatically. |
 
-Everything above is wired and tested with mocked HTTP only. The submitted demonstration uses the bundled synthetic clip and simulated provider responses. Live latency, cost, model quality and ad-delivery results have not been measured.
+The submitted demonstration uses the bundled synthetic clip and simulated provider responses. The successful text-only Spark connectivity check is separate from the media workflow. Live media latency, total media cost, tracking quality and ad-delivery results have not been measured.
 
 ## Challenges we ran into
 

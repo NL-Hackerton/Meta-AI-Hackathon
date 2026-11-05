@@ -2,7 +2,7 @@
 
 **AdLoom is designed to turn one phone video from a small business into six ad videos sized for Meta placements and two PAUSED ads in the owner's own ad account. It uses Meta's Muse Spark, SAM 3.1, Muse Image and Muse Voice, and it publishes nothing until the owner approves the reviewed content.**
 
-So far it runs end to end in fixture mode (mock providers, bundled sample clip). The live adapters are built and tested against mocked HTTP, but no live model call and no real ad has been made yet — see [Project status](#project-status).
+The full media-to-ad workflow runs end to end in fixture mode (mock providers, bundled sample clip). On 2026-11-05, the live model-list endpoint and a minimal Muse Spark 1.3 text request succeeded; the complete media pipeline and real ad creation remain unverified — see [Project status](#project-status).
 
 Built for the Meta Global AI Developer Hackathon.
 
@@ -37,7 +37,7 @@ Screens in the web app: Home, Welcome and business profile, Meta connection stat
 
 ## How it uses Meta AI
 
-All model calls below are implemented and tested against mocked HTTP responses only. The model IDs come from Meta's developer documentation ([api notes](docs/api_notes/verification.md)) and have not yet been confirmed against the live API.
+The integrations below are implemented and tested with mocked HTTP. On 2026-11-05, the live model-list endpoint confirmed the documented model IDs, and a minimal text-only request to `muse-spark-1.3` completed. This does not validate video understanding, segmentation, image generation, transcription or advertising.
 
 | Model | Job it is designed to do in AdLoom |
 | --- | --- |
@@ -97,8 +97,8 @@ Rendered videos are written to `data/jobs/JOB_ID/renders/r000001/`. `ADLOOM_DATA
 
 - **Working now (fixture mode):** the full path — upload, understand, track, crop, enrich, render six videos, review, edit, approve, publish two PAUSED ads — from both the CLI and the web app, using mock providers and fixture data. Publish IDs starting with `fixture-` are not Meta IDs.
 - **Verified (2026-11-02):** `make check` (ruff, mypy strict, pytest) — **520 passed**. This is the only place the test count is recorded; other documents link here. Earlier checks, also in [STATUS.md](STATUS.md): two renders of the same job produced identical frame hashes on the same ffmpeg build (synthetic sample clip only), and a partial publish followed by resume produced 9 requests and 2 ads with no duplicates in the mock publisher.
-- **Implemented but gated:** live adapters for Muse Spark, SAM 3.1, Muse Image, Muse Voice and the Marketing API, tested against mocked HTTP responses only. Live mode stays off until the Model API key and the ad account are available; `ADLOOM_LIVE=1` is currently refused rather than silently falling back to mocks.
-- **No live model call and no real ad has been made yet.** The submitted demonstration uses the bundled synthetic clip and simulated provider responses. There are no live performance, cost or ad-delivery results to report.
+- **Implemented but gated:** live adapters for Muse Spark, SAM 3.1, Muse Image, Muse Voice and the Marketing API. The full live pipeline remains gated pending its account, cost and data-handling checks; `ADLOOM_LIVE=1` is refused rather than silently falling back to mocks.
+- **Live smoke test (2026-11-05):** `GET /v1/models` returned HTTP 200. A minimal `muse-spark-1.3` text request returned `READY` with status `completed` (13 input and 29 output tokens). No live media pipeline or real ad creation has been verified. The submitted demonstration uses the bundled synthetic clip and simulated provider responses.
 - **Unknown-outcome demo in fixture mode:** `ADLOOM_FIXTURE_FAULT=publish_unknown_once` (fixture mode only, off by default) makes the mock publisher lose the reply to the first ad-set request in each server process. The journal records `UNKNOWN`, and the web app shows "Publish result unknown" and **Stop attempt**, without touching a real account. Restart the server to show it again.
 - **Not built yet:** a read-only lookup on Meta for publish requests with an unknown outcome (the live publisher has a `read()` method for it, but nothing calls it yet).
 
