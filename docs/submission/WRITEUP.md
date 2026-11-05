@@ -60,7 +60,7 @@ All four models are called through the Meta Model API (`https://api.meta.ai/v1`)
 | **Muse Voice** `muse-voice-transcribe-1.0` | (1) Transcribes a spoken description when the owner records one instead of typing. (2) Transcribes the video's own audio; the segments become burned-in subtitles. (`src/adloom/adapters/voice.py`, `src/adloom/stages/input.py`, `src/adloom/stages/enrich.py`) | Owners often find it easier to talk than to type, and Meta's Reels guidance assumes sound on; subtitles keep the message readable with sound off. | A transcribed description is shown to the owner and used only after they confirm it. Subtitles are part of the approval fingerprint and of the policy check. |
 | **Marketing API** (Graph API) | Creates, in order: campaign, ad set, thumbnail image, then for each of the two 9:16 variants a video, a creative and an ad. (`src/adloom/stages/publish.py`, `src/adloom/adapters/marketing.py`) | It is how the result lands in the owner's own ad account, ready for Ads Manager. | **PAUSED only:** campaign, ad set and ad are always `PAUSED`; the publisher refuses any other status before sending. **Approval fingerprint:** publishing re-checks that the approval file is intact and that the SHA-256 of the current content equals the approved one. **Journal:** each request is recorded before it is sent and after it returns; a request whose outcome is unknown is never re-sent automatically. |
 
-Everything above is wired and tested with mocked HTTP only. Live measurements: [fill after live run: date, model IDs called, number of requests per model, Spark output for the demo video (hooks), SAM coverage on the demo video, tracked vs center crop "kept whole" percentages per ratio, image fallback yes/no, total Model API spend against the configured limit].
+Everything above is wired and tested with mocked HTTP only. The submitted demonstration uses the bundled synthetic clip and simulated provider responses. Live latency, cost, model quality and ad-delivery results have not been measured.
 
 ## Challenges we ran into
 
@@ -87,7 +87,7 @@ Everything above is wired and tested with mocked HTTP only. Live measurements: [
 
 ## What's next
 
-- Run the live path end to end with the Model API key and a real ad account, and fill in the measurements marked above.
+- Run the live path end to end with approved Model API access and a real ad account, then measure latency, cost, tracking quality and rendering quality on owner-authorized footage.
 - Show claim review on a real owner video. It is implemented and covered by tests, but the bundled fixture produces no claims and Spark's real claims on real footage have not been seen yet.
 - Grow the policy rule table from real flags and false positives seen in live runs.
 - Record the unknown-outcome recovery beat in fixture mode with `ADLOOM_FIXTURE_FAULT=publish_unknown_once` (fixture only, off by default; it fires on the first ad-set request in each server process).

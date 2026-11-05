@@ -98,14 +98,14 @@ Rendered videos are written to `data/jobs/JOB_ID/renders/r000001/`. `ADLOOM_DATA
 - **Working now (fixture mode):** the full path — upload, understand, track, crop, enrich, render six videos, review, edit, approve, publish two PAUSED ads — from both the CLI and the web app, using mock providers and fixture data. Publish IDs starting with `fixture-` are not Meta IDs.
 - **Verified (2026-11-02):** `make check` (ruff, mypy strict, pytest) — **520 passed**. This is the only place the test count is recorded; other documents link here. Earlier checks, also in [STATUS.md](STATUS.md): two renders of the same job produced identical frame hashes on the same ffmpeg build (synthetic sample clip only), and a partial publish followed by resume produced 9 requests and 2 ads with no duplicates in the mock publisher.
 - **Implemented but gated:** live adapters for Muse Spark, SAM 3.1, Muse Image, Muse Voice and the Marketing API, tested against mocked HTTP responses only. Live mode stays off until the Model API key and the ad account are available; `ADLOOM_LIVE=1` is currently refused rather than silently falling back to mocks.
-- **No live model call and no real ad has been made yet.** Live results: [fill after live run: date, models called, demo video SAM coverage, ad IDs of the 2 PAUSED ads from Ads Manager].
+- **No live model call and no real ad has been made yet.** The submitted demonstration uses the bundled synthetic clip and simulated provider responses. There are no live performance, cost or ad-delivery results to report.
 - **Unknown-outcome demo in fixture mode:** `ADLOOM_FIXTURE_FAULT=publish_unknown_once` (fixture mode only, off by default) makes the mock publisher lose the reply to the first ad-set request in each server process. The journal records `UNKNOWN`, and the web app shows "Publish result unknown" and **Stop attempt**, without touching a real account. Restart the server to show it again.
 - **Not built yet:** a read-only lookup on Meta for publish requests with an unknown outcome (the live publisher has a `read()` method for it, but nothing calls it yet).
 
 ## Team and license
 
-- Team: [fill in: team members and roles]
-- License: [fill in: no license file has been chosen yet]. Third-party components keep their own licenses: Meta's `meta-sam-parser` (SAM License) and Noto Sans KR (SIL OFL) — see [third_party/README.md](third_party/README.md). BMAD support scripts are MIT — see [_bmad/LICENSE](_bmad/LICENSE).
+- Contributor roles are recorded in the repository history; participant identity is provided through the submission portal.
+- No project-wide license has been granted. Third-party components retain their respective licenses: Meta's `meta-sam-parser` (SAM License) and Noto Sans KR (SIL OFL) — see [third_party/README.md](third_party/README.md). BMAD support scripts are MIT — see [_bmad/LICENSE](_bmad/LICENSE).
 
 ## More documentation
 

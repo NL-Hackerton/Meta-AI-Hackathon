@@ -76,4 +76,4 @@ These come from `SPEC.md` §1. The last column names the code that enforces each
 - The approval fingerprint covers the stored files and fields the review screen shows. It cannot prove what the owner actually looked at.
 - Frame-hash determinism is verified only within the same ffmpeg build, font file and renderer code, and only on the synthetic sample clip so far.
 - Output sizes match the 9:16, 4:5 and 1:1 placements, but nothing has yet been checked against Meta's ad review or live placement previews.
-- As of this document, no live model call and no real ad has been made. Live results: [fill after live run: Spark/SAM/Image/Voice request IDs or dates, and the Ads Manager read-back of 2 PAUSED ads].
+- No live model call or real ad creation has been verified. The submitted demonstration uses the bundled synthetic clip and simulated provider responses; it does not show a real Ads Manager result.
